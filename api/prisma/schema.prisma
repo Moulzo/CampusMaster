@@ -1,0 +1,75 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String        @id @default(cuid())
+  email             String        @unique
+  fullName          String
+  passwordHash      String
+  role              String        // 'STUDENT' | 'TEACHER' | 'ADMIN'
+  refreshTokenHash  String?
+  
+  // Relations
+  coursesCreated    Course[]      @relation("TeacherCourses")
+  coursesEnrolled   Course[]      @relation("StudentCourses")
+  submissions       Submission[]
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+}
+
+// No enum needed for SQLite - using string instead
+
+model Course {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  teacher     User     @relation("TeacherCourses", fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId   String
+  
+  // Many-to-many: students enrolled in this course
+  students    User[]   @relation("StudentCourses")
+  
+  assignments Assignment[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Assignment {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  dueDate     DateTime
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId    String
+  
+  submissions Submission[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Submission {
+  id            String   @id @default(cuid())
+  student       User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId     String
+  assignment    Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  assignmentId  String
+  
+  fileUrl       String?  // Path to uploaded file
+  score         Float?   // 0-20
+  feedback      String?
+  submittedAt   DateTime @default(now())
+  correctedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@unique([studentId, assignmentId])
+}
