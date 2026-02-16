@@ -17,12 +17,6 @@ export default function AdminPage() {
               <h1 className="text-2xl font-bold text-slate-900">Panneau Administrateur</h1>
               <p className="text-sm text-slate-500 mt-1">Gérez le système et les utilisateurs</p>
             </div>
-            <button
-              onClick={() => logout()}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition"
-            >
-              Se déconnecter
-            </button>
           </div>
         </header>
 

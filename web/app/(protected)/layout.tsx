@@ -19,33 +19,34 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   const [user, setUser] = useState<AuthUser | null>(null);
   const [error, setError] = useState<string>("");
 
-  // ✅ Hard redirect, fiable à 100%
-  const hardRedirectToLogin = () => {
+  const hardRedirectToLogin = (withNext: boolean) => {
     if (typeof window === "undefined") return;
-    window.location.replace(buildLoginUrl(pathname));
+    window.location.replace(withNext ? buildLoginUrl(pathname) : "/login");
   };
 
-  // 🔥 Réagir immédiatement à un logout (tokens cleared)
+  // Réagir immédiatement à un logout / tokens cleared
   useEffect(() => {
     const onAuth = (e: Event) => {
       const ce = e as CustomEvent<any>;
       const type = ce?.detail?.type as string | undefined;
+      const reason = ce?.detail?.reason as string | undefined;
 
       if (type === "tokens:cleared") {
         setUser(null);
         setLoading(false);
-        hardRedirectToLogin();
+
+        // ✅ si c'est un logout volontaire => pas de next
+        hardRedirectToLogin(reason !== "logout");
       }
     };
 
     window.addEventListener(AUTH_EVENT, onAuth);
 
-    // Bonus: si un autre onglet supprime les tokens
     const onStorage = (ev: StorageEvent) => {
       if (ev.key === "refreshToken" && !ev.newValue) {
         setUser(null);
         setLoading(false);
-        hardRedirectToLogin();
+        hardRedirectToLogin(true);
       }
     };
     window.addEventListener("storage", onStorage);
@@ -60,10 +61,9 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     let cancelled = false;
 
-    // pas de refresh token => login direct
     if (!getRefreshToken()) {
       setLoading(false);
-      hardRedirectToLogin();
+      hardRedirectToLogin(true);
       return;
     }
 
@@ -72,11 +72,11 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
         const res = await apiFetch(`${API_URL}/auth/me`, { cache: "no-store" });
 
         if (res.status === 401) {
-          await logout();
+          await logout(); // déclenche tokens:cleared
           if (!cancelled) {
             setUser(null);
             setLoading(false);
-            hardRedirectToLogin();
+            hardRedirectToLogin(false);
           }
           return;
         }

@@ -17,12 +17,6 @@ export default function TeacherPage() {
               <h1 className="text-2xl font-bold text-slate-900">Espace Enseignant</h1>
               <p className="text-sm text-slate-500 mt-1">Gérez vos cours et notes</p>
             </div>
-            <button
-              onClick={() => logout()}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition"
-            >
-              Se déconnecter
-            </button>
           </div>
         </header>
 
