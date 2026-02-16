@@ -14,7 +14,7 @@ export class CoursesService {
       data: {
         title: createCourseDto.title,
         description: createCourseDto.description ?? null,
-        teacherId, // ✅ maintenant teacherId est bien un string (cuid)
+        teacherId,
       },
       include: {
         teacher: {
@@ -59,13 +59,8 @@ export class CoursesService {
       });
     }
 
-    // STUDENT: cours où il est inscrit
+    // ✅ STUDENT: tous les cours (pour afficher "cours disponibles" + "mes inscriptions" côté front)
     return this.prisma.course.findMany({
-      where: {
-        students: {
-          some: { id: userId },
-        },
-      },
       include: {
         teacher: { select: { id: true, email: true, fullName: true } },
         students: { select: { id: true, email: true, fullName: true } },
@@ -98,7 +93,6 @@ export class CoursesService {
       where: { id },
       data: {
         ...updateCourseDto,
-        // si jamais description peut être "" depuis le front, tu peux normaliser ici :
         ...(updateCourseDto.description !== undefined
           ? { description: updateCourseDto.description || null }
           : {}),

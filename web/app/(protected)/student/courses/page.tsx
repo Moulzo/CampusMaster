@@ -15,47 +15,58 @@ export default function StudentCoursesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
 
-  // Load courses
-  useEffect(() => {
-    if (authLoading) return;
-
-    (async () => {
-      try {
-        const data = await getCourses();
-        setAllCourses(data);
-
-        // Filter courses where user is enrolled
-        const myEnrolled = data.filter((c) =>
-          c.students.some((s) => s.id === user?.id)
-        );
-        setEnrolledCourses(myEnrolled);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [authLoading, user?.id]);
-
-  // Enroll to course
-  async function handleEnroll(courseId: string) {
+  async function loadCourses() {
+    setError("");
+    setLoading(true);
     try {
-      const updated = await enrollCourse(courseId);
-      setEnrolledCourses([...enrolledCourses, updated]);
+      const data = await getCourses();
+      setAllCourses(data);
+
+      const myEnrolled = data.filter((c) =>
+        c.students.some((s) => s.id === user?.id)
+      );
+      setEnrolledCourses(myEnrolled);
     } catch (err: any) {
-      setError(err.message);
+      setError(err?.message ?? "Erreur");
+    } finally {
+      setLoading(false);
     }
   }
 
-  // Unenroll from course
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      router.replace("/login?next=/student/courses");
+      return;
+    }
+    if (user.role !== "STUDENT") {
+      router.replace(`/login?next=/student/courses`);
+      return;
+    }
+
+    loadCourses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, user?.id]);
+
+  async function handleEnroll(courseId: string) {
+    setError("");
+    try {
+      await enrollCourse(courseId);
+      await loadCourses(); // ✅ refresh clean
+    } catch (err: any) {
+      setError(err?.message ?? "Erreur");
+    }
+  }
+
   async function handleUnenroll(courseId: string) {
     if (!confirm("Êtes-vous sûr de vouloir vous désinscrire de ce cours ?")) return;
 
+    setError("");
     try {
       await unenrollCourse(courseId);
-      setEnrolledCourses(enrolledCourses.filter((c) => c.id !== courseId));
+      await loadCourses(); // ✅ refresh clean
     } catch (err: any) {
-      setError(err.message);
+      setError(err?.message ?? "Erreur");
     }
   }
 
@@ -73,7 +84,6 @@ export default function StudentCoursesPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* Header */}
       <header className="bg-white shadow-sm border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <div>
@@ -81,7 +91,10 @@ export default function StudentCoursesPage() {
             <p className="text-sm text-slate-500 mt-1">Consulter et gérer vos inscriptions</p>
           </div>
           <button
-            onClick={() => logout()}
+            onClick={async () => {
+              await logout();
+              router.replace("/login");
+            }}
             className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition"
           >
             Se déconnecter
@@ -89,7 +102,6 @@ export default function StudentCoursesPage() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -97,7 +109,6 @@ export default function StudentCoursesPage() {
           </div>
         )}
 
-        {/* My Courses */}
         <section className="mb-12">
           <h2 className="text-xl font-bold text-slate-900 mb-6">
             Mes inscriptions ({enrolledCourses.length})
@@ -154,7 +165,6 @@ export default function StudentCoursesPage() {
           </div>
         </section>
 
-        {/* Available Courses */}
         <section>
           <h2 className="text-xl font-bold text-slate-900 mb-6">
             Cours disponibles ({availableCourses.length})
