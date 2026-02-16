@@ -1,21 +1,42 @@
 const API_URL = "http://localhost:3001/api";
 
+/**
+ * Event global pour prévenir l'app qu'il y a eu login/logout.
+ * (React ne rerender pas automatiquement sur changement localStorage)
+ */
+export const AUTH_EVENT = "campusmaster:auth";
+
+type AuthEventDetail =
+  | { type: "tokens:set" }
+  | { type: "tokens:cleared" };
+
+function emitAuthEvent(detail: AuthEventDetail) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent<AuthEventDetail>(AUTH_EVENT, { detail }));
+}
+
 export function getAccessToken() {
+  if (typeof window === "undefined") return null;
   return localStorage.getItem("accessToken");
 }
 
 export function getRefreshToken() {
+  if (typeof window === "undefined") return null;
   return localStorage.getItem("refreshToken");
 }
 
 export function setTokens(accessToken: string, refreshToken?: string) {
+  if (typeof window === "undefined") return;
   localStorage.setItem("accessToken", accessToken);
   if (refreshToken) localStorage.setItem("refreshToken", refreshToken);
+  emitAuthEvent({ type: "tokens:set" });
 }
 
 export function clearTokens() {
+  if (typeof window === "undefined") return;
   localStorage.removeItem("accessToken");
   localStorage.removeItem("refreshToken");
+  emitAuthEvent({ type: "tokens:cleared" });
 }
 
 export async function refreshTokens(): Promise<boolean> {
@@ -70,6 +91,7 @@ export async function logout() {
       });
     }
   } finally {
+    // déclenche AUTH_EVENT tokens:cleared
     clearTokens();
   }
 }

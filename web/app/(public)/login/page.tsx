@@ -13,8 +13,20 @@ function getDefaultRouteForRole(role?: string) {
     case "TEACHER":
       return "/teacher";
     default:
-      return "/student"; // STUDENT (ou inconnu)
+      return "/student";
   }
+}
+
+// ✅ Autorise "next" seulement s'il correspond au rôle
+function isNextAllowedForRole(nextPath: string, role?: string) {
+  // toujours ok
+  if (nextPath === "/forbidden") return true;
+
+  // routes par rôle
+  if (role === "ADMIN") return nextPath === "/admin" || nextPath.startsWith("/admin/");
+  if (role === "TEACHER") return nextPath === "/teacher" || nextPath.startsWith("/teacher/");
+  // STUDENT (ou inconnu)
+  return nextPath === "/student" || nextPath.startsWith("/student/");
 }
 
 function LoginInner() {
@@ -36,7 +48,6 @@ function LoginInner() {
     setLoading(true);
 
     try {
-      // login = endpoint public => fetch direct
       const res = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -54,15 +65,18 @@ function LoginInner() {
       // Ton API renvoie { user, accessToken, refreshToken }
       setTokens(data.accessToken, data.refreshToken);
 
-      // 1) Si on venait d’une page protégée => on y retourne
-      if (safeNext) {
+      const role = data?.user?.role as string | undefined;
+
+      // 1) Si on venait d’une page protégée => on y retourne SEULEMENT si compatible avec le rôle
+      if (safeNext && isNextAllowedForRole(safeNext, role)) {
         router.replace(safeNext);
+        router.refresh();
         return;
       }
 
-      // 2) Sinon, on route selon le rôle (projet multi-espaces)
-      const role = data?.user?.role as string | undefined;
+      // 2) Sinon, routing standard par rôle
       router.replace(getDefaultRouteForRole(role));
+      router.refresh();
     } catch (e: any) {
       setError(e?.message ?? "Erreur");
     } finally {
@@ -70,7 +84,6 @@ function LoginInner() {
     }
   }
 
-  // Quick login helpers
   function quickLogin(testEmail: string) {
     setEmail(testEmail);
     setPassword("Pass1234!");
@@ -79,13 +92,11 @@ function LoginInner() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-500 to-purple-600 flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-md">
-        {/* Logo / Title */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-white mb-2">CampusMaster</h1>
           <p className="text-blue-100">Plateforme de Gestion Académique</p>
         </div>
 
-        {/* Login Card */}
         <div className="bg-white rounded-lg shadow-xl p-8 border border-slate-200">
           <h2 className="text-2xl font-bold text-slate-900 mb-6">Se connecter</h2>
 
@@ -131,7 +142,6 @@ function LoginInner() {
             </div>
           )}
 
-          {/* Quick Login Helpers */}
           <div className="border-t border-slate-200 pt-6">
             <p className="text-xs text-slate-500 font-semibold uppercase mb-3">
               Comptes de test
@@ -165,7 +175,6 @@ function LoginInner() {
           </div>
         </div>
 
-        {/* Footer */}
         <div className="text-center mt-6 text-blue-100 text-sm">
           <p>© 2026 CampusMaster. Tous droits réservés.</p>
         </div>

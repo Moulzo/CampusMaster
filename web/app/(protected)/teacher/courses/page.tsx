@@ -22,13 +22,13 @@ export default function TeacherCoursesPage() {
   useEffect(() => {
     if (authLoading) return;
 
-    // si pas teacher -> tu peux rediriger (optionnel)
     if (!user) {
       router.replace(`/login?next=/teacher/courses`);
       return;
     }
+
     if (user.role !== "TEACHER") {
-      router.replace(`/login?next=/teacher/courses`);
+      router.replace(`/forbidden`);
       return;
     }
 
@@ -91,10 +91,12 @@ export default function TeacherCoursesPage() {
             <h1 className="text-2xl font-bold text-slate-900">Mes Cours</h1>
             <p className="text-sm text-slate-500 mt-1">Gestion des cours que vous enseignez</p>
           </div>
+
           <button
             onClick={async () => {
               await logout();
               router.replace("/login");
+              router.refresh();
             }}
             className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition"
           >
@@ -167,7 +169,10 @@ export default function TeacherCoursesPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {courses.length > 0 ? (
             courses.map((course) => (
-              <div key={course.id} className="bg-white rounded-lg shadow-md border border-slate-200 p-6 hover:shadow-lg transition">
+              <div
+                key={course.id}
+                className="bg-white rounded-lg shadow-md border border-slate-200 p-6 hover:shadow-lg transition"
+              >
                 <h3 className="text-lg font-bold text-slate-900 mb-2">{course.title}</h3>
                 <p className="text-sm text-slate-600 mb-4 h-12 line-clamp-2">
                   {course.description || "Aucune description"}
@@ -200,7 +205,7 @@ export default function TeacherCoursesPage() {
             ))
           ) : (
             <div className="col-span-full p-8 bg-slate-50 rounded-lg border border-dashed border-slate-300 text-center">
-              <p className="text-slate-600 mb-4">Vous n'avez pas encore créé de cours</p>
+              <p className="text-slate-600 mb-4">Vous n&apos;avez pas encore créé de cours</p>
               <button
                 onClick={() => setShowForm(true)}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition"

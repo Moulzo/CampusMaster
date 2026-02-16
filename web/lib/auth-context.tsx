@@ -1,7 +1,13 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { getAccessToken, getRefreshToken, setTokens, clearTokens } from "@/lib/auth";
+import {
+  AUTH_EVENT,
+  getAccessToken,
+  getRefreshToken,
+  setTokens,
+  clearTokens,
+} from "@/lib/auth";
 
 const API_URL = "http://localhost:3001/api";
 
@@ -63,7 +69,7 @@ export function AuthProvider({
 
       let res = await callMe(access);
 
-      // si access expiré => tenter refresh 1 fois
+      // access expiré => refresh 1 fois
       if (res.status === 401) {
         const ok = await tryRefresh();
         if (!ok) {
@@ -86,7 +92,6 @@ export function AuthProvider({
       }
 
       const data = await res.json();
-      // attendu : { user: { id, email, role } }
       setUser(data.user as AuthUser);
     } finally {
       setLoading(false);
@@ -95,6 +100,26 @@ export function AuthProvider({
 
   useEffect(() => {
     reload();
+  }, []);
+
+  // 🔥 écoute login/logout pour éviter états "fantômes"
+  useEffect(() => {
+    const onAuth = (e: Event) => {
+      const ce = e as CustomEvent<any>;
+      const type = ce?.detail?.type as string | undefined;
+
+      if (type === "tokens:cleared") {
+        setUser(null);
+        setLoading(false);
+      }
+
+      if (type === "tokens:set") {
+        reload();
+      }
+    };
+
+    window.addEventListener(AUTH_EVENT, onAuth);
+    return () => window.removeEventListener(AUTH_EVENT, onAuth);
   }, []);
 
   const value = useMemo(() => ({ user, loading, reload }), [user, loading]);
