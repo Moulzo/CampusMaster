@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { CreateAssignmentDto } from './dto/create-assignment.dto';
@@ -25,11 +25,21 @@ export class AssignmentsService {
       throw new ForbiddenException('You are not the teacher of this course');
     }
 
+    const maxScore = createAssignmentDto.maxScore ?? 20;
+    if (!Number.isFinite(maxScore) || maxScore <= 0 || maxScore > 1000) {
+      throw new BadRequestException('maxScore must be between 1 and 1000');
+    }
+
     return this.prisma.assignment.create({
       data: {
         title: createAssignmentDto.title,
         description: createAssignmentDto.description ?? null,
         dueDate: new Date(createAssignmentDto.dueDate),
+        maxScore,
+        attachmentUrl: createAssignmentDto.attachmentUrl ?? null,
+        attachmentName: createAssignmentDto.attachmentName ?? null,
+        attachmentSize: createAssignmentDto.attachmentSize ?? null,
+        attachmentMimeType: createAssignmentDto.attachmentMimeType ?? null,
         courseId: createAssignmentDto.courseId,
         teacherId,
       },
@@ -203,6 +213,13 @@ export class AssignmentsService {
 
     if (assignment.course.teacherId !== teacherId) {
       throw new ForbiddenException('You are not the teacher of this assignment');
+    }
+
+    if (updateAssignmentDto.maxScore !== undefined) {
+      const maxScore = updateAssignmentDto.maxScore;
+      if (!Number.isFinite(maxScore) || maxScore <= 0 || maxScore > 1000) {
+        throw new BadRequestException('maxScore must be between 1 and 1000');
+      }
     }
 
     return this.prisma.assignment.update({

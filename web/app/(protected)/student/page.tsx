@@ -1,10 +1,65 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { logout } from "@/lib/auth";
+import { getCourses } from "@/lib/courses";
+import { Assignment, getAssignments } from "@/lib/assignments";
 
 export default function StudentPage() {
   const { user, loading } = useAuth();
+
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState<string>("");
+  const [coursesCount, setCoursesCount] = useState(0);
+  const [assignmentsCount, setAssignmentsCount] = useState(0);
+  const [avgScore, setAvgScore] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (loading) return;
+    if (!user) return;
+
+    (async () => {
+      setStatsLoading(true);
+      setStatsError("");
+      try {
+        const [courses, assignments] = await Promise.all([getCourses(), getAssignments()]);
+        const enrolled = courses.filter((c) => c.students?.some((s) => s.id === user.id));
+        const enrolledIds = new Set(enrolled.map((c) => c.id));
+        const myAssignments = assignments.filter((a) => enrolledIds.has(a.courseId));
+
+        setCoursesCount(enrolled.length);
+        setAssignmentsCount(myAssignments.length);
+
+        const gradedScores: number[] = [];
+        for (const a of myAssignments) {
+          const mySub = a.submissions?.find((s) => s.studentId === user.id);
+          if (mySub && mySub.score !== null && mySub.score !== undefined) {
+            gradedScores.push(mySub.score);
+          }
+        }
+
+        if (gradedScores.length === 0) {
+          setAvgScore(null);
+        } else {
+          const sum = gradedScores.reduce((acc, s) => acc + s, 0);
+          setAvgScore(sum / gradedScores.length);
+        }
+      } catch (e: any) {
+        setStatsError(e?.message ?? "Erreur");
+      } finally {
+        setStatsLoading(false);
+      }
+    })();
+  }, [loading, user?.id]);
+
+  const coursesLabel = useMemo(() => (statsLoading ? "…" : String(coursesCount)), [statsLoading, coursesCount]);
+  const assignmentsLabel = useMemo(() => (statsLoading ? "…" : String(assignmentsCount)), [statsLoading, assignmentsCount]);
+  const avgLabel = useMemo(() => {
+    if (statsLoading) return "…";
+    if (avgScore === null) return "--";
+    return avgScore.toFixed(1);
+  }, [statsLoading, avgScore]);
 
   if (loading) return <p className="p-6">Chargement...</p>;
   if (!user) return null;
@@ -52,12 +107,17 @@ export default function StudentPage() {
           {/* Main Panel */}
           <div className="lg:col-span-2 space-y-6">
             {/* Stats */}
+            {statsError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-700 font-medium">{statsError}</p>
+              </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-white rounded-lg shadow-md p-6 border border-slate-200">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-slate-500">Mes Cours</p>
-                    <p className="text-3xl font-bold text-slate-900 mt-1">0</p>
+                    <p className="text-3xl font-bold text-slate-900 mt-1">{coursesLabel}</p>
                   </div>
                   <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                     <span className="text-xl">📚</span>
@@ -68,7 +128,7 @@ export default function StudentPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-slate-500">Devoirs</p>
-                    <p className="text-3xl font-bold text-slate-900 mt-1">0</p>
+                    <p className="text-3xl font-bold text-slate-900 mt-1">{assignmentsLabel}</p>
                   </div>
                   <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
                     <span className="text-xl">📋</span>
@@ -79,7 +139,7 @@ export default function StudentPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-slate-500">Moyenne</p>
-                    <p className="text-3xl font-bold text-slate-900 mt-1">--</p>
+                    <p className="text-3xl font-bold text-slate-900 mt-1">{avgLabel}</p>
                   </div>
                   <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
                     <span className="text-xl">📊</span>

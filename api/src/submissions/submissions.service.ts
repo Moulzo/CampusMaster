@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -31,11 +31,40 @@ export class SubmissionsService {
       throw new ForbiddenException('You are not enrolled in this course');
     }
 
-    return this.prisma.submission.create({
-      data: {
+    const now = new Date();
+    if (now.getTime() > new Date(assignment.dueDate).getTime()) {
+      throw new ForbiddenException('Deadline has passed');
+    }
+
+    const existing = await this.prisma.submission.findUnique({
+      where: {
+        studentId_assignmentId: {
+          studentId,
+          assignmentId,
+        },
+      },
+      select: { id: true, correctedAt: true },
+    });
+
+    if (existing?.correctedAt) {
+      throw new ForbiddenException('Submission is already corrected');
+    }
+
+    return this.prisma.submission.upsert({
+      where: {
+        studentId_assignmentId: {
+          studentId,
+          assignmentId,
+        },
+      },
+      create: {
         assignmentId,
         studentId,
         fileUrl: fileUrl ?? null,
+      },
+      update: {
+        ...(fileUrl === undefined ? {} : { fileUrl: fileUrl ?? null }),
+        submittedAt: new Date(),
       },
       include: {
         assignment: {
@@ -44,6 +73,11 @@ export class SubmissionsService {
             title: true,
             description: true,
             dueDate: true,
+            maxScore: true,
+            attachmentUrl: true,
+            attachmentName: true,
+            attachmentSize: true,
+            attachmentMimeType: true,
             course: {
               select: {
                 id: true,
@@ -192,6 +226,11 @@ export class SubmissionsService {
       throw new ForbiddenException('You are not the teacher of this course');
     }
 
+    const maxScore = submission.assignment.maxScore ?? 20;
+    if (score < 0 || score > maxScore) {
+      throw new BadRequestException(`score must be between 0 and ${maxScore}`);
+    }
+
     return this.prisma.submission.update({
       where: { id },
       data: {
@@ -206,6 +245,11 @@ export class SubmissionsService {
             title: true,
             description: true,
             dueDate: true,
+            maxScore: true,
+            attachmentUrl: true,
+            attachmentName: true,
+            attachmentSize: true,
+            attachmentMimeType: true,
             course: {
               select: {
                 id: true,

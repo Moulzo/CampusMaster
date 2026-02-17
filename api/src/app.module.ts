@@ -7,6 +7,7 @@ import { CoursesModule } from './courses/courses.module';
 import { AssignmentsModule } from './assignments/assignments.module';
 import { SubmissionsModule } from './submissions/submissions.module';
 import { AdminUsersModule } from './admin-users/admin-users.module';
+import { FilesModule } from './files/files.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { AdminUsersModule } from './admin-users/admin-users.module';
     AssignmentsModule,
     SubmissionsModule,
     AdminUsersModule,
+    FilesModule,
     ConfigModule.forRoot({ isGlobal: true }),
   ],
   controllers: [AppController],

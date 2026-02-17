@@ -7,6 +7,11 @@ export interface Assignment {
   title: string;
   description: string | null;
   dueDate: string;
+  maxScore: number;
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
+  attachmentSize?: number | null;
+  attachmentMimeType?: string | null;
   courseId: string;
   teacherId: string;
   course: {
@@ -67,6 +72,31 @@ export async function getAssignments(courseId?: string): Promise<Assignment[]> {
   return res.json();
 }
 
+export async function uploadFile(file: File): Promise<{ fileUrl: string; originalName?: string }> {
+  const form = new FormData();
+  form.append("file", file);
+
+  const res = await fetch(`${API_URL}/files/upload`, {
+    method: "POST",
+    headers: {
+      ...authHeaders(),
+    },
+    body: form,
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(txt || `Failed to upload file: ${res.status}`);
+  }
+
+  const data = await res.json();
+  if (!data?.fileUrl) {
+    throw new Error("Upload failed: fileUrl manquant");
+  }
+  return { fileUrl: data.fileUrl, originalName: data.originalName };
+}
+
 export async function getAssignment(id: string): Promise<Assignment> {
   const res = await fetch(`${API_URL}/assignments/${id}`, {
     headers: authHeaders(),
@@ -80,14 +110,26 @@ export async function getAssignment(id: string): Promise<Assignment> {
   return res.json();
 }
 
-export async function createAssignment(title: string, description: string | null, dueDate: string, courseId: string): Promise<Assignment> {
+export async function createAssignment(
+  title: string,
+  description: string | null,
+  dueDate: string,
+  courseId: string,
+  opts?: {
+    maxScore?: number;
+    attachmentUrl?: string;
+    attachmentName?: string;
+    attachmentSize?: number;
+    attachmentMimeType?: string;
+  },
+): Promise<Assignment> {
   const res = await fetch(`${API_URL}/assignments`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       ...authHeaders(),
     },
-    body: JSON.stringify({ title, description, dueDate, courseId }),
+    body: JSON.stringify({ title, description, dueDate, courseId, ...(opts ?? {}) }),
     cache: "no-store",
   });
 

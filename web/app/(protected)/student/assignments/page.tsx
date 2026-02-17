@@ -9,8 +9,10 @@ import {
   Submission,
   createSubmission,
   getAssignments,
+  uploadFile,
 } from "@/lib/assignments";
 import { Dropzone } from "@/components/Dropzone";
+import { useToast } from "@/lib/toast";
 
 function formatDate(iso: string) {
   const d = new Date(iso);
@@ -18,9 +20,15 @@ function formatDate(iso: string) {
   return d.toLocaleString();
 }
 
+function isBeforeDueDate(dueDateIso: string) {
+  const due = new Date(dueDateIso);
+  return Date.now() <= due.getTime();
+}
+
 export default function StudentAssignmentsPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+  const toast = useToast();
 
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<string>("");
@@ -29,6 +37,7 @@ export default function StudentAssignmentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
 
+  const [submissionOriginalNames, setSubmissionOriginalNames] = useState<Record<string, string>>({});
   const [submittingId, setSubmittingId] = useState<string | null>(null);
 
   const enrolledCourses = useMemo(() => {
@@ -87,16 +96,33 @@ export default function StudentAssignmentsPage() {
     })();
   }, [selectedCourseId, user?.id, enrolledCourses]);
 
-  async function handleSubmit(assignmentId: string, fileUrl?: string) {
+  async function handleUploadAndSubmit(assignmentId: string, file?: File) {
+    let fileUrl: string | undefined;
+    let originalName: string | undefined;
+    if (file) {
+      const up = await uploadFile(file);
+      fileUrl = up.fileUrl;
+      originalName = up.originalName;
+    }
+    await handleSubmit(assignmentId, fileUrl, originalName);
+  }
+
+  async function handleSubmit(assignmentId: string, fileUrl?: string, originalName?: string) {
     setError("");
     setSubmittingId(assignmentId);
     try {
       await createSubmission(assignmentId, fileUrl);
+      if (originalName && user) {
+        const key = `${user.id}-${assignmentId}`;
+        setSubmissionOriginalNames((prev) => ({ ...prev, [key]: originalName }));
+      }
+      toast.push("success", "Soumission envoyée");
       const a = await getAssignments(selectedCourseId || undefined);
       const enrolledIds = new Set(enrolledCourses.map((c) => c.id));
       setAssignments(a.filter((x) => enrolledIds.has(x.courseId)));
     } catch (e: any) {
       setError(e?.message ?? "Erreur");
+      toast.push("error", e?.message ?? "Erreur lors de la soumission");
     } finally {
       setSubmittingId(null);
     }
@@ -159,6 +185,8 @@ export default function StudentAssignmentsPage() {
                 ? a.submissions?.find((s) => s.studentId === user.id)
                 : undefined;
 
+              const canResubmit = isBeforeDueDate(a.dueDate) && !mySubmission?.correctedAt;
+
               return (
                 <div key={a.id} className="bg-white rounded-lg shadow-md border border-slate-200 p-6">
                   <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
@@ -166,8 +194,24 @@ export default function StudentAssignmentsPage() {
                       <h3 className="text-lg font-bold text-slate-900">{a.title}</h3>
                       <p className="text-sm text-slate-600">Cours: {a.course?.title}</p>
                       <p className="text-sm text-slate-600">Date limite: {formatDate(a.dueDate)}</p>
+                      <p className="text-sm text-slate-600">Note max: {a.maxScore ?? 20}</p>
                       {a.description ? (
                         <p className="text-sm text-slate-700 mt-2 whitespace-pre-wrap">{a.description}</p>
+                      ) : null}
+
+                      {a.attachmentUrl ? (
+                        <div className="mt-3 flex items-center gap-2">
+                          <a
+                            href={a.attachmentUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            download={a.attachmentName ?? undefined}
+                            className="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition"
+                          >
+                            Télécharger la consigne
+                          </a>
+                          <span className="text-xs text-slate-500 truncate">{a.attachmentName ?? a.attachmentUrl}</span>
+                        </div>
                       ) : null}
                     </div>
 
@@ -177,9 +221,25 @@ export default function StudentAssignmentsPage() {
                         {mySubmission ? (
                           <div className="mt-2 text-sm text-slate-700 space-y-1">
                             <p>Déposée: {formatDate(mySubmission.submittedAt)}</p>
-                            <p>Fichier: {mySubmission.fileUrl ?? "(aucun)"}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="truncate">Fichier: {mySubmission.fileUrl ?? "(aucun)"}</p>
+                              {(() => {
+                                const originalFileName = user ? submissionOriginalNames[`${user.id}-${a.id}`] : undefined;
+                                return mySubmission.fileUrl ? (
+                                  <a
+                                    href={mySubmission.fileUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    download={originalFileName}
+                                    className="shrink-0 px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition"
+                                  >
+                                    Télécharger
+                                  </a>
+                                ) : null;
+                              })()}
+                            </div>
                             <p>
-                              Note: {mySubmission.score ?? "--"} / 20
+                              Note: {mySubmission.score ?? "--"} / {a.maxScore ?? 20}
                               {mySubmission.correctedAt ? ` (corrigé: ${formatDate(mySubmission.correctedAt)})` : ""}
                             </p>
                             {mySubmission.feedback ? (
@@ -191,13 +251,11 @@ export default function StudentAssignmentsPage() {
                         )}
                       </div>
 
-                      {!mySubmission && (
+                      {(!mySubmission || canResubmit) && (
                         <div className="space-y-3">
                           <Dropzone
                             onFileUpload={(file) => {
-                              // Pour l'instant on n'a pas d'upload réel côté API.
-                              // On envoie un fileUrl "logique" basé sur le nom du fichier.
-                              handleSubmit(a.id, `/uploads/${file.name}`);
+                              handleUploadAndSubmit(a.id, file);
                             }}
                             className=""
                           />
@@ -207,13 +265,27 @@ export default function StudentAssignmentsPage() {
                             disabled={submittingId === a.id}
                             className="w-full px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-400 text-white rounded-lg font-medium transition"
                           >
-                            {submittingId === a.id ? "Envoi..." : "Soumettre sans fichier"}
+                            {submittingId === a.id
+                              ? "Envoi..."
+                              : mySubmission
+                              ? "Modifier sans fichier"
+                              : "Soumettre sans fichier"}
                           </button>
                           <p className="text-xs text-slate-500">
-                            L'upload réel de fichiers n'est pas encore branché: on stocke juste un `fileUrl`.
+                            Les fichiers sont uploadés sur l'API puis liés à la soumission via `fileUrl`.
                           </p>
                         </div>
                       )}
+
+                      {mySubmission && !canResubmit ? (
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                          <p className="text-sm text-amber-800">
+                            {mySubmission.correctedAt
+                              ? "Soumission corrigée : modification désactivée."
+                              : "Date limite dépassée : modification désactivée."}
+                          </p>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 </div>

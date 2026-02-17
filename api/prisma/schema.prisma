@@ -55,6 +55,11 @@ model Assignment {
   title       String
   description String?
   dueDate     DateTime
+  maxScore    Int      @default(20)
+  attachmentUrl      String?
+  attachmentName     String?
+  attachmentSize     Int?
+  attachmentMimeType String?
   course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseId    String
   teacher     User     @relation("TeacherAssignments", fields: [teacherId], references: [id], onDelete: Cascade)

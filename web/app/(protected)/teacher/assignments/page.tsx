@@ -11,7 +11,9 @@ import {
   getAssignments,
   getSubmissions,
   gradeSubmission,
+  uploadFile,
 } from "@/lib/assignments";
+import { useToast } from "@/lib/toast";
 
 function formatDate(iso: string) {
   const d = new Date(iso);
@@ -22,6 +24,7 @@ function formatDate(iso: string) {
 export default function TeacherAssignmentsPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+  const toast = useToast();
 
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<string>("");
@@ -37,6 +40,8 @@ export default function TeacherAssignmentsPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [maxScore, setMaxScore] = useState<string>("20");
+  const [attachment, setAttachment] = useState<{ url: string; name?: string; size?: number; type?: string } | null>(null);
 
   const [gradingBySubmissionId, setGradingBySubmissionId] = useState<Record<string, boolean>>({});
   const [editBySubmissionId, setEditBySubmissionId] = useState<Record<string, boolean>>({});
@@ -101,14 +106,34 @@ export default function TeacherAssignmentsPage() {
       return;
     }
 
+    const ms = Number(maxScore);
+    if (Number.isNaN(ms) || ms <= 0 || ms > 1000) {
+      setError("maxScore invalide");
+      return;
+    }
+
     setFormLoading(true);
     setError("");
     try {
-      const created = await createAssignment(title, description || null, new Date(dueDate).toISOString(), selectedCourseId);
+      const created = await createAssignment(
+        title,
+        description || null,
+        new Date(dueDate).toISOString(),
+        selectedCourseId,
+        {
+          maxScore: ms,
+          attachmentUrl: attachment?.url,
+          attachmentName: attachment?.name,
+          attachmentSize: attachment?.size,
+          attachmentMimeType: attachment?.type,
+        },
+      );
       setAssignments((prev) => [created, ...prev]);
       setTitle("");
       setDescription("");
       setDueDate("");
+      setMaxScore("20");
+      setAttachment(null);
       setShowForm(false);
     } catch (e: any) {
       setError(e?.message ?? "Erreur");
@@ -167,12 +192,19 @@ export default function TeacherAssignmentsPage() {
     }));
   }
 
-  async function handleGrade(submissionId: string, assignmentId: string) {
+  async function handleGrade(submissionId: string, assignmentId: string, max: number) {
     setError("");
     const draft = draftBySubmissionId[submissionId];
     const score = Number(draft?.score);
     if (Number.isNaN(score)) {
       setError("Score invalide");
+      toast.push("error", "Score invalide");
+      return;
+    }
+
+    if (score < 0 || score > max) {
+      setError(`Score doit être entre 0 et ${max}`);
+      toast.push("error", `Score doit être entre 0 et ${max}`);
       return;
     }
 
@@ -189,8 +221,10 @@ export default function TeacherAssignmentsPage() {
       setEditBySubmissionId((prev) => ({ ...prev, [submissionId]: false }));
       setSubmissionDraftFromData(updated);
       setLastSavedBySubmissionId((prev) => ({ ...prev, [submissionId]: new Date().toISOString() }));
+      toast.push("success", "Note enregistrée");
     } catch (e: any) {
       setError(e?.message ?? "Erreur");
+      toast.push("error", e?.message ?? "Erreur lors de la notation");
     } finally {
       setGradingBySubmissionId((prev) => ({ ...prev, [submissionId]: false }));
     }
@@ -272,6 +306,72 @@ export default function TeacherAssignmentsPage() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Note max</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={1000}
+                    value={maxScore}
+                    onChange={(e) => setMaxScore(e.target.value)}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Fichier consigne (optionnel)</label>
+                  <input
+                    type="file"
+                    className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setError("");
+                      setFormLoading(true);
+                      try {
+                        const up = await uploadFile(file);
+                        setAttachment({ url: up.fileUrl, name: file.name, size: file.size, type: file.type });
+                        toast.push("success", "Fichier consigne uploadé");
+                      } catch (err: any) {
+                        setError(err?.message ?? "Erreur");
+                        toast.push("error", err?.message ?? "Erreur upload");
+                      } finally {
+                        setFormLoading(false);
+                      }
+                    }}
+                  />
+                  {attachment?.url ? (
+                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-xs text-blue-700 font-medium truncate">{attachment.name}</span>
+                          <span className="text-xs text-blue-600">({Math.round((attachment.size ?? 0) / 1024)} KB)</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={attachment.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            download={attachment.name ?? undefined}
+                            className="px-3 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg font-medium transition"
+                          >
+                            Voir
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => setAttachment(null)}
+                            className="px-3 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-medium transition"
+                          >
+                            Supprimer
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Description (optionnel)</label>
                 <textarea
@@ -318,6 +418,21 @@ export default function TeacherAssignmentsPage() {
                       <h3 className="text-lg font-bold text-slate-900">{a.title}</h3>
                       <p className="text-sm text-slate-600">Cours: {a.course?.title}</p>
                       <p className="text-sm text-slate-600">Date limite: {formatDate(a.dueDate)}</p>
+                      <p className="text-sm text-slate-600">Note max: {a.maxScore ?? 20}</p>
+                      {a.attachmentUrl ? (
+                        <div className="mt-1 flex items-center gap-2">
+                          <a
+                            href={a.attachmentUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            download={a.attachmentName ?? undefined}
+                            className="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition"
+                          >
+                            Télécharger consigne
+                          </a>
+                          <span className="text-xs text-slate-500 truncate">{a.attachmentName ?? a.attachmentUrl}</span>
+                        </div>
+                      ) : null}
                     </div>
                     <button
                       onClick={() => toggleSubmissions(a.id)}
@@ -343,7 +458,17 @@ export default function TeacherAssignmentsPage() {
                                 </p>
                                 <p className="text-sm text-slate-600">Déposé: {formatDate(s.submittedAt)}</p>
                                 {s.fileUrl ? (
-                                  <p className="text-sm text-slate-600 truncate">Fichier: {s.fileUrl}</p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-sm text-slate-600 truncate">Fichier: {s.fileUrl}</p>
+                                    <a
+                                      href={s.fileUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="shrink-0 px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition"
+                                    >
+                                      Télécharger
+                                    </a>
+                                  </div>
                                 ) : (
                                   <p className="text-sm text-slate-500">Aucun fichier</p>
                                 )}
@@ -405,9 +530,9 @@ export default function TeacherAssignmentsPage() {
                                         type="number"
                                         step="0.5"
                                         min={0}
-                                        max={20}
+                                        max={a.maxScore ?? 20}
                                         value={draft.score}
-                                        placeholder="/20"
+                                        placeholder={`/${a.maxScore ?? 20}`}
                                         disabled={!isEditing || isGrading}
                                         className={`w-28 px-3 py-2 border rounded-lg text-slate-900 ${
                                           !isEditing || isGrading ? "bg-slate-100 border-slate-200" : "border-slate-300"
@@ -427,7 +552,7 @@ export default function TeacherAssignmentsPage() {
                                       {isEditing ? (
                                         <>
                                           <button
-                                            onClick={() => handleGrade(s.id, a.id)}
+                                            onClick={() => handleGrade(s.id, a.id, a.maxScore ?? 20)}
                                             disabled={isGrading}
                                             className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white rounded-lg font-medium transition"
                                           >

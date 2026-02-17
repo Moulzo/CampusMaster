@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { apiFetch, getRefreshToken, AUTH_EVENT, clearTokens } from "@/lib/auth";
 import { AuthProvider, AuthUser } from "@/lib/auth-context";
+import { ToastProvider } from "@/lib/toast";
 
 const API_URL = "http://localhost:3001/api";
 
@@ -125,5 +126,9 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   if (error) return <pre style={{ padding: 24, color: "tomato" }}>{error}</pre>;
   if (loading) return <p style={{ padding: 24 }}>Chargement...</p>;
 
-  return <AuthProvider user={user} loading={false}>{children}</AuthProvider>;
+  return (
+    <AuthProvider user={user} loading={false}>
+      <ToastProvider>{children}</ToastProvider>
+    </AuthProvider>
+  );
 }

@@ -3,9 +3,42 @@
 import { RequireRole } from "@/lib/require-role";
 import { useAuth } from "@/lib/auth-context";
 import { logout } from "@/lib/auth";
+import { getCourses } from "@/lib/courses";
+import { getAssignments } from "@/lib/assignments";
+import { useEffect, useMemo, useState } from "react";
 
 export default function TeacherPage() {
   const { user, loading } = useAuth();
+
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState<string>("");
+  const [coursesCount, setCoursesCount] = useState(0);
+  const [studentsCount, setStudentsCount] = useState(0);
+  const [assignmentsCount, setAssignmentsCount] = useState(0);
+
+  useEffect(() => {
+    if (loading) return;
+    if (!user) return;
+
+    (async () => {
+      setStatsLoading(true);
+      setStatsError("");
+      try {
+        const [courses, assignments] = await Promise.all([getCourses(), getAssignments()]);
+        setCoursesCount(courses.length);
+        setStudentsCount(courses.reduce((acc, c) => acc + (c.students?.length ?? 0), 0));
+        setAssignmentsCount(assignments.length);
+      } catch (e: any) {
+        setStatsError(e?.message ?? "Erreur");
+      } finally {
+        setStatsLoading(false);
+      }
+    })();
+  }, [loading, user?.id]);
+
+  const coursesLabel = useMemo(() => (statsLoading ? "…" : String(coursesCount)), [statsLoading, coursesCount]);
+  const studentsLabel = useMemo(() => (statsLoading ? "…" : String(studentsCount)), [statsLoading, studentsCount]);
+  const assignmentsLabel = useMemo(() => (statsLoading ? "…" : String(assignmentsCount)), [statsLoading, assignmentsCount]);
 
   return (
     <RequireRole role="TEACHER">
@@ -56,12 +89,17 @@ export default function TeacherPage() {
               {/* Main Panel */}
               <div className="lg:col-span-2 space-y-6">
                 {/* Stats */}
+                {statsError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-700 font-medium">{statsError}</p>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="bg-white rounded-lg shadow-md p-6 border border-slate-200">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm text-slate-500">Mes Cours</p>
-                        <p className="text-3xl font-bold text-slate-900 mt-1">0</p>
+                        <p className="text-3xl font-bold text-slate-900 mt-1">{coursesLabel}</p>
                       </div>
                       <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                         <span className="text-xl">📚</span>
@@ -72,7 +110,7 @@ export default function TeacherPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm text-slate-500">Étudiants</p>
-                        <p className="text-3xl font-bold text-slate-900 mt-1">0</p>
+                        <p className="text-3xl font-bold text-slate-900 mt-1">{studentsLabel}</p>
                       </div>
                       <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
                         <span className="text-xl">👥</span>
@@ -83,7 +121,7 @@ export default function TeacherPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm text-slate-500">Devoirs</p>
-                        <p className="text-3xl font-bold text-slate-900 mt-1">0</p>
+                        <p className="text-3xl font-bold text-slate-900 mt-1">{assignmentsLabel}</p>
                       </div>
                       <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
                         <span className="text-xl">✏️</span>
