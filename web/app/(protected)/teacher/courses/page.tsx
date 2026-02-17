@@ -33,8 +33,8 @@ export default function TeacherCoursesPage() {
     (async () => {
       try {
         const data = await getCourses();
-        const myCourses = data.filter((c) => c.teacherId === user.id);
-        setCourses(myCourses);
+        // ✅ L'API filtre déjà par teacherId pour les TEACHER
+        setCourses(data);
       } catch (err: any) {
         setError(err.message ?? "Erreur");
       } finally {

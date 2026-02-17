@@ -46,9 +46,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     try {
       await logout();
     } finally {
-      // replace + refresh => évite de rester sur une page protégée en cache
-      router.replace("/login");
-      router.refresh();
+      // ✅ FIX: Utiliser window.location.href pour éviter les problèmes de cache
+      window.location.href = "/login";
     }
   }
 

@@ -36,12 +36,17 @@ export class AuthService {
     });
   }
 
-  async register(email: string, password: string, fullName: string) {
+  async register(email: string, password: string, fullName: string, role?: Role) {
     const exists = await this.prisma.user.findUnique({
       where: { email: email.toLowerCase() },
     });
 
     if (exists) throw new BadRequestException('Email déjà utilisé');
+
+    const normalizedRole: Role = role ?? 'STUDENT';
+    if (!['STUDENT', 'TEACHER', 'ADMIN'].includes(normalizedRole)) {
+      throw new BadRequestException('Role invalide');
+    }
 
     const passwordHash = await bcrypt.hash(password, 10);
 
@@ -50,7 +55,7 @@ export class AuthService {
         email: email.toLowerCase(),
         fullName,
         passwordHash,
-        role: 'STUDENT',
+        role: normalizedRole,
         refreshTokenHash: null,
       },
     });
