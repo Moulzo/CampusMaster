@@ -22,11 +22,18 @@ type AuthCtx = {
 
 const Ctx = createContext<AuthCtx | null>(null);
 
-async function callMe(accessToken: string) {
-  return fetch(`${API_URL}/auth/me`, {
+async function callMe(accessToken: string, signal?: AbortSignal) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+
+  const res = await fetch(`${API_URL}/auth/me`, {
     headers: { Authorization: `Bearer ${accessToken}` },
     cache: "no-store",
+    signal: signal || controller.signal,
   });
+
+  clearTimeout(timeoutId);
+  return res;
 }
 
 async function tryRefresh(): Promise<boolean> {
@@ -69,21 +76,10 @@ export function AuthProvider({
 
       let res = await callMe(access);
 
-      // access expiré => refresh 1 fois
+      // access expiré => le layout gérera le refresh
       if (res.status === 401) {
-        const ok = await tryRefresh();
-        if (!ok) {
-          setUser(null);
-          clearTokens();
-          return;
-        }
-        const access2 = getAccessToken();
-        if (!access2) {
-          setUser(null);
-          clearTokens();
-          return;
-        }
-        res = await callMe(access2);
+        setUser(null);
+        return;
       }
 
       if (!res.ok) {
@@ -93,13 +89,23 @@ export function AuthProvider({
 
       const data = await res.json();
       setUser(data.user as AuthUser);
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.warn('Auth check timeout');
+      } else {
+        console.warn('Auth check failed:', error);
+      }
+      setUser(null);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    reload();
+    // Ne recharger que si on n'a pas d'utilisateur initial (évite duplication avec layout)
+    if (initialUser === undefined) {
+      reload();
+    }
   }, []);
 
   // 🔥 écoute login/logout pour éviter états "fantômes"

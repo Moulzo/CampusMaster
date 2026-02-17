@@ -90,15 +90,6 @@ export default function StudentCoursesPage() {
             <h1 className="text-2xl font-bold text-slate-900">Mes Cours</h1>
             <p className="text-sm text-slate-500 mt-1">Consulter et gérer vos inscriptions</p>
           </div>
-          <button
-            onClick={async () => {
-              await logout();
-              router.replace("/login");
-            }}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition"
-          >
-            Se déconnecter
-          </button>
         </div>
       </header>
 

@@ -73,19 +73,21 @@ function LoginInner() {
 
       const role = data?.user?.role as string | undefined;
 
+      // Déterminer la destination
+      let destination: string;
+
       // 1) Si on venait d'une page protégée => on y retourne SEULEMENT si compatible avec le rôle
       if (safeNext && isNextAllowedForRole(safeNext, role)) {
-        // ✅ FIX: Utiliser window.location.href au lieu de router.replace
-        // Cela force un vrai rechargement de la page et garantit que le layout se re-initialise
-        window.location.href = safeNext;
-        return;
+        destination = safeNext;
+      } else {
+        // 2) Sinon, routing standard par rôle
+        destination = getDefaultRouteForRole(role);
       }
 
-      // 2) Sinon, routing standard par rôle
-      const destination = getDefaultRouteForRole(role);
       // ✅ FIX: Utiliser window.location.href au lieu de router.replace
       // Cela force un vrai rechargement de la page et garantit que le layout se re-initialise
       window.location.href = destination;
+
     } catch (e: any) {
       if (e?.name === 'AbortError') {
         setError("Délai d'attente dépassé");

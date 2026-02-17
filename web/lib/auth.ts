@@ -8,7 +8,7 @@ export const AUTH_EVENT = "campusmaster:auth";
 
 type AuthEventDetail =
   | { type: "tokens:set" }
-  | { type: "tokens:cleared" };
+  | { type: "tokens:cleared"; reason?: string }; // ✅ Ajout du reason
 
 function emitAuthEvent(detail: AuthEventDetail) {
   if (typeof window === "undefined") return;
@@ -32,29 +32,57 @@ export function setTokens(accessToken: string, refreshToken?: string) {
   emitAuthEvent({ type: "tokens:set" });
 }
 
-export function clearTokens() {
+// ✅ Ajout du paramètre reason pour distinguer logout volontaire vs session expirée
+export function clearTokens(reason?: string) {
   if (typeof window === "undefined") return;
   localStorage.removeItem("accessToken");
   localStorage.removeItem("refreshToken");
-  emitAuthEvent({ type: "tokens:cleared" });
+  emitAuthEvent({ type: "tokens:cleared", reason }); // ✅ Passe le reason
 }
 
+// Single-flight pattern pour éviter les refresh simultanés
+let refreshPromise: Promise<boolean> | null = null;
+
 export async function refreshTokens(): Promise<boolean> {
+  // Si un refresh est déjà en cours, retourner la même promesse
+  if (refreshPromise) return refreshPromise;
+
   const refreshToken = getRefreshToken();
   if (!refreshToken) return false;
 
-  const res = await fetch(`${API_URL}/auth/refresh`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refreshToken }),
-    cache: "no-store",
-  });
+  refreshPromise = (async () => {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
 
-  if (!res.ok) return false;
+      const res = await fetch(`${API_URL}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+        cache: "no-store",
+        signal: controller.signal,
+      });
 
-  const data = await res.json();
-  setTokens(data.accessToken, data.refreshToken);
-  return true;
+      clearTimeout(timeoutId);
+
+      if (!res.ok) return false;
+
+      const data = await res.json();
+      setTokens(data.accessToken, data.refreshToken);
+      return true;
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.warn('Refresh timeout');
+      } else {
+        console.warn('Refresh failed:', error);
+      }
+      return false;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
 }
 
 // fetch qui retente un refresh si 401
@@ -68,7 +96,7 @@ export async function apiFetch(input: string, init: RequestInit = {}) {
 
   if (res.status !== 401) return res;
 
-  // 401 => tenter refresh
+  // 401 => tenter refresh (single-flight)
   const ok = await refreshTokens();
   if (!ok) return res;
 
@@ -91,7 +119,7 @@ export async function logout() {
       });
     }
   } finally {
-    // déclenche AUTH_EVENT tokens:cleared
-    clearTokens();
+    // ✅ Indique que c'est un logout volontaire (pas une session expirée)
+    clearTokens("logout");
   }
 }
