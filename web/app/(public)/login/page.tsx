@@ -6,6 +6,12 @@ import { setTokens } from "@/lib/auth";
 
 const API_URL = "http://localhost:3001/api";
 
+const TEST_ACCOUNTS = {
+  admin: { email: "admin@test.com", password: "Password123!" },
+  teacher: { email: "teacher@test.com", password: "Password123!" },
+  student: { email: "student@test.com", password: "Password123!" },
+} as const;
+
 function getDefaultRouteForRole(role?: string) {
   switch (role) {
     case "ADMIN":
@@ -37,8 +43,8 @@ function LoginInner() {
   const rawNext = searchParams.get("next");
   const safeNext = rawNext && rawNext.startsWith("/") ? rawNext : null;
 
-  const [email, setEmail] = useState("admin@campusmaster.test");
-  const [password, setPassword] = useState("Pass1234!");
+  const [email, setEmail] = useState<string>(TEST_ACCOUNTS.admin.email);
+  const [password, setPassword] = useState<string>(TEST_ACCOUNTS.admin.password);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -99,7 +105,8 @@ function LoginInner() {
 
   function quickLogin(testEmail: string) {
     setEmail(testEmail);
-    setPassword("Pass1234!");
+    const found = Object.values(TEST_ACCOUNTS).find((a) => a.email === testEmail);
+    setPassword(found?.password ?? TEST_ACCOUNTS.admin.password);
   }
 
   return (
@@ -162,28 +169,28 @@ function LoginInner() {
             <div className="space-y-2">
               <button
                 type="button"
-                onClick={() => quickLogin("admin@campusmaster.test")}
+                onClick={() => quickLogin(TEST_ACCOUNTS.admin.email)}
                 className="w-full px-3 py-2 text-sm bg-purple-50 hover:bg-purple-100 text-purple-700 font-medium rounded-lg border border-purple-200 transition flex items-center justify-center gap-2"
               >
                 <span>👤</span> Admin
               </button>
               <button
                 type="button"
-                onClick={() => quickLogin("teacher@campusmaster.test")}
+                onClick={() => quickLogin(TEST_ACCOUNTS.teacher.email)}
                 className="w-full px-3 py-2 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium rounded-lg border border-blue-200 transition flex items-center justify-center gap-2"
               >
                 <span>👨‍🏫</span> Enseignant
               </button>
               <button
                 type="button"
-                onClick={() => quickLogin("student@campusmaster.test")}
+                onClick={() => quickLogin(TEST_ACCOUNTS.student.email)}
                 className="w-full px-3 py-2 text-sm bg-green-50 hover:bg-green-100 text-green-700 font-medium rounded-lg border border-green-200 transition flex items-center justify-center gap-2"
               >
                 <span>👨‍🎓</span> Étudiant
               </button>
             </div>
             <p className="text-xs text-slate-400 text-center mt-4">
-              Tous les mots de passe: <code className="font-mono">Pass1234!</code>
+              Tous les mots de passe: <code className="font-mono">Password123!</code>
             </p>
           </div>
         </div>

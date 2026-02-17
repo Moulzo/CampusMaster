@@ -1,0 +1,470 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth-context";
+import { Course, getCourses } from "@/lib/courses";
+import {
+  Assignment,
+  Submission,
+  createAssignment,
+  getAssignments,
+  getSubmissions,
+  gradeSubmission,
+} from "@/lib/assignments";
+
+function formatDate(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString();
+}
+
+export default function TeacherAssignmentsPage() {
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [selectedCourseId, setSelectedCourseId] = useState<string>("");
+
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [submissionsByAssignmentId, setSubmissionsByAssignmentId] = useState<Record<string, Submission[]>>({});
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>("");
+
+  const [showForm, setShowForm] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [dueDate, setDueDate] = useState("");
+
+  const [gradingBySubmissionId, setGradingBySubmissionId] = useState<Record<string, boolean>>({});
+  const [editBySubmissionId, setEditBySubmissionId] = useState<Record<string, boolean>>({});
+  const [draftBySubmissionId, setDraftBySubmissionId] = useState<Record<string, { score: string; feedback: string }>>({});
+  const [lastSavedBySubmissionId, setLastSavedBySubmissionId] = useState<Record<string, string>>({});
+
+  const courseOptions = useMemo(() => {
+    return [{ id: "", title: "Tous les cours" } as any, ...courses];
+  }, [courses]);
+
+  useEffect(() => {
+    if (authLoading) return;
+
+    if (!user) {
+      router.replace(`/login?next=/teacher/assignments`);
+      return;
+    }
+
+    if (user.role !== "TEACHER") {
+      router.replace(`/forbidden`);
+      return;
+    }
+
+    (async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const [c, a] = await Promise.all([getCourses(), getAssignments()]);
+        setCourses(c);
+        setAssignments(a);
+      } catch (e: any) {
+        setError(e?.message ?? "Erreur");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [authLoading, user, router]);
+
+  useEffect(() => {
+    if (!user || user.role !== "TEACHER") return;
+
+    (async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const a = await getAssignments(selectedCourseId || undefined);
+        setAssignments(a);
+      } catch (e: any) {
+        setError(e?.message ?? "Erreur");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [selectedCourseId]);
+
+  async function handleCreateAssignment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim()) return;
+    if (!dueDate) return;
+    if (!selectedCourseId) {
+      setError("Sélectionne un cours pour créer un devoir.");
+      return;
+    }
+
+    setFormLoading(true);
+    setError("");
+    try {
+      const created = await createAssignment(title, description || null, new Date(dueDate).toISOString(), selectedCourseId);
+      setAssignments((prev) => [created, ...prev]);
+      setTitle("");
+      setDescription("");
+      setDueDate("");
+      setShowForm(false);
+    } catch (e: any) {
+      setError(e?.message ?? "Erreur");
+    } finally {
+      setFormLoading(false);
+    }
+  }
+
+  async function toggleSubmissions(assignmentId: string) {
+    const existing = submissionsByAssignmentId[assignmentId];
+    if (existing) {
+      setSubmissionsByAssignmentId((prev) => {
+        const next = { ...prev };
+        delete next[assignmentId];
+        return next;
+      });
+      return;
+    }
+
+    setError("");
+    try {
+      const subs = await getSubmissions(assignmentId);
+      setSubmissionsByAssignmentId((prev) => ({ ...prev, [assignmentId]: subs }));
+
+      setEditBySubmissionId((prev) => {
+        const next = { ...prev };
+        for (const s of subs) {
+          if (next[s.id] === undefined) {
+            next[s.id] = s.score === null && !s.correctedAt;
+          }
+        }
+        return next;
+      });
+
+      setDraftBySubmissionId((prev) => {
+        const next = { ...prev };
+        for (const s of subs) {
+          if (!next[s.id]) {
+            next[s.id] = { score: s.score === null ? "" : String(s.score), feedback: s.feedback ?? "" };
+          }
+        }
+        return next;
+      });
+    } catch (e: any) {
+      setError(e?.message ?? "Erreur");
+    }
+  }
+
+  function setSubmissionDraftFromData(submission: Submission) {
+    setDraftBySubmissionId((prev) => ({
+      ...prev,
+      [submission.id]: {
+        score: submission.score === null ? "" : String(submission.score),
+        feedback: submission.feedback ?? "",
+      },
+    }));
+  }
+
+  async function handleGrade(submissionId: string, assignmentId: string) {
+    setError("");
+    const draft = draftBySubmissionId[submissionId];
+    const score = Number(draft?.score);
+    if (Number.isNaN(score)) {
+      setError("Score invalide");
+      return;
+    }
+
+    setGradingBySubmissionId((prev) => ({ ...prev, [submissionId]: true }));
+    try {
+      const updated = await gradeSubmission(submissionId, score, draft?.feedback || undefined);
+
+      setSubmissionsByAssignmentId((prev) => {
+        const current = prev[assignmentId] ?? [];
+        const next = current.map((s) => (s.id === submissionId ? updated : s));
+        return { ...prev, [assignmentId]: next };
+      });
+
+      setEditBySubmissionId((prev) => ({ ...prev, [submissionId]: false }));
+      setSubmissionDraftFromData(updated);
+      setLastSavedBySubmissionId((prev) => ({ ...prev, [submissionId]: new Date().toISOString() }));
+    } catch (e: any) {
+      setError(e?.message ?? "Erreur");
+    } finally {
+      setGradingBySubmissionId((prev) => ({ ...prev, [submissionId]: false }));
+    }
+  }
+
+  if (authLoading || loading) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-[70vh]">
+      <header className="bg-white shadow-sm border border-slate-200 rounded-lg">
+        <div className="px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Devoirs</h1>
+            <p className="text-sm text-slate-500 mt-1">Créez des devoirs et notez les soumissions</p>
+          </div>
+        </div>
+      </header>
+
+      <main className="py-8 space-y-6">
+        {error && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-sm text-red-700 font-medium">{error}</p>
+          </div>
+        )}
+
+        <div className="bg-white rounded-lg shadow-md p-6 border border-slate-200 flex flex-col sm:flex-row gap-3 sm:items-end">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-slate-700 mb-2">Filtrer par cours</label>
+            <select
+              value={selectedCourseId}
+              onChange={(e) => setSelectedCourseId(e.target.value)}
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+            >
+              {courseOptions.map((c: any) => (
+                <option key={c.id} value={c.id}>
+                  {c.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            onClick={() => setShowForm((v) => !v)}
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition"
+          >
+            {showForm ? "Fermer" : "Créer un devoir"}
+          </button>
+        </div>
+
+        {showForm && (
+          <div className="bg-white rounded-lg shadow-md p-6 border border-slate-200">
+            <h2 className="text-lg font-bold text-slate-900 mb-4">Nouveau devoir</h2>
+            <form onSubmit={handleCreateAssignment} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Titre</label>
+                  <input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Date limite</label>
+                  <input
+                    type="datetime-local"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Description (optionnel)</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={3}
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  disabled={formLoading}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white rounded-lg font-medium transition"
+                >
+                  {formLoading ? "Création..." : "Créer"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  className="px-4 py-2 bg-slate-300 hover:bg-slate-400 text-slate-800 rounded-lg font-medium transition"
+                >
+                  Annuler
+                </button>
+              </div>
+            </form>
+            <p className="text-xs text-slate-500 mt-4">Le devoir sera créé dans le cours sélectionné dans le filtre.</p>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 gap-4">
+          {assignments.length === 0 ? (
+            <div className="p-8 bg-slate-50 rounded-lg border border-dashed border-slate-300 text-center">
+              <p className="text-slate-600">Aucun devoir pour le moment.</p>
+            </div>
+          ) : (
+            assignments.map((a) => {
+              const subs = submissionsByAssignmentId[a.id];
+              return (
+                <div key={a.id} className="bg-white rounded-lg shadow-md border border-slate-200 p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-900">{a.title}</h3>
+                      <p className="text-sm text-slate-600">Cours: {a.course?.title}</p>
+                      <p className="text-sm text-slate-600">Date limite: {formatDate(a.dueDate)}</p>
+                    </div>
+                    <button
+                      onClick={() => toggleSubmissions(a.id)}
+                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-medium transition"
+                    >
+                      {subs ? "Masquer les soumissions" : "Voir les soumissions"}
+                    </button>
+                  </div>
+
+                  {subs && (
+                    <div className="mt-6 space-y-3">
+                      {subs.length === 0 ? (
+                        <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
+                          <p className="text-sm text-slate-600">Aucune soumission.</p>
+                        </div>
+                      ) : (
+                        subs.map((s) => (
+                          <div key={s.id} className="p-4 border border-slate-200 rounded-lg">
+                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="font-semibold text-slate-900 truncate">
+                                  {s.student?.fullName} ({s.student?.email})
+                                </p>
+                                <p className="text-sm text-slate-600">Déposé: {formatDate(s.submittedAt)}</p>
+                                {s.fileUrl ? (
+                                  <p className="text-sm text-slate-600 truncate">Fichier: {s.fileUrl}</p>
+                                ) : (
+                                  <p className="text-sm text-slate-500">Aucun fichier</p>
+                                )}
+
+                                <div className="mt-2 flex flex-wrap gap-2 items-center">
+                                  {s.correctedAt ? (
+                                    <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-full">
+                                      Corrigé
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full">
+                                      En attente
+                                    </span>
+                                  )}
+                                  {s.score !== null ? (
+                                    <span className="text-xs text-slate-600">Note: {s.score} / 20</span>
+                                  ) : null}
+                                  {s.correctedAt ? (
+                                    <span className="text-xs text-slate-500">Corrigé: {formatDate(s.correctedAt)}</span>
+                                  ) : null}
+                                  {lastSavedBySubmissionId[s.id] ? (
+                                    <span className="text-xs text-slate-500">Enregistré</span>
+                                  ) : null}
+                                </div>
+                              </div>
+
+                              <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                                {(() => {
+                                  const isEditing = editBySubmissionId[s.id] ?? (s.score === null && !s.correctedAt);
+                                  const draft = draftBySubmissionId[s.id] ?? {
+                                    score: s.score === null ? "" : String(s.score),
+                                    feedback: s.feedback ?? "",
+                                  };
+                                  const isGrading = gradingBySubmissionId[s.id] === true;
+
+                                  const updateDraft = (patch: Partial<{ score: string; feedback: string }>) => {
+                                    setDraftBySubmissionId((prev) => ({
+                                      ...prev,
+                                      [s.id]: {
+                                        score: patch.score ?? (prev[s.id]?.score ?? draft.score),
+                                        feedback: patch.feedback ?? (prev[s.id]?.feedback ?? draft.feedback),
+                                      },
+                                    }));
+                                  };
+
+                                  const startEdit = () => {
+                                    setEditBySubmissionId((prev) => ({ ...prev, [s.id]: true }));
+                                    setSubmissionDraftFromData(s);
+                                  };
+
+                                  const cancelEdit = () => {
+                                    setEditBySubmissionId((prev) => ({ ...prev, [s.id]: false }));
+                                    setSubmissionDraftFromData(s);
+                                  };
+
+                                  return (
+                                    <>
+                                      <input
+                                        type="number"
+                                        step="0.5"
+                                        min={0}
+                                        max={20}
+                                        value={draft.score}
+                                        placeholder="/20"
+                                        disabled={!isEditing || isGrading}
+                                        className={`w-28 px-3 py-2 border rounded-lg text-slate-900 ${
+                                          !isEditing || isGrading ? "bg-slate-100 border-slate-200" : "border-slate-300"
+                                        }`}
+                                        onChange={(e) => updateDraft({ score: e.target.value })}
+                                      />
+                                      <input
+                                        value={draft.feedback}
+                                        placeholder="Feedback"
+                                        disabled={!isEditing || isGrading}
+                                        className={`flex-1 min-w-[200px] px-3 py-2 border rounded-lg text-slate-900 ${
+                                          !isEditing || isGrading ? "bg-slate-100 border-slate-200" : "border-slate-300"
+                                        }`}
+                                        onChange={(e) => updateDraft({ feedback: e.target.value })}
+                                      />
+
+                                      {isEditing ? (
+                                        <>
+                                          <button
+                                            onClick={() => handleGrade(s.id, a.id)}
+                                            disabled={isGrading}
+                                            className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white rounded-lg font-medium transition"
+                                          >
+                                            {isGrading ? "Enregistrement..." : s.correctedAt ? "Enregistrer" : "Noter"}
+                                          </button>
+                                          <button
+                                            onClick={cancelEdit}
+                                            disabled={isGrading}
+                                            className="px-4 py-2 bg-slate-300 hover:bg-slate-400 disabled:bg-slate-200 text-slate-800 rounded-lg font-medium transition"
+                                          >
+                                            Annuler
+                                          </button>
+                                        </>
+                                      ) : (
+                                        <button
+                                          onClick={startEdit}
+                                          className="px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg font-medium transition"
+                                        >
+                                          Modifier
+                                        </button>
+                                      )}
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}

@@ -61,15 +61,14 @@ export function Dropzone({
       const result = e.target?.result;
       if (result && typeof result === 'string') {
         // Simuler un upload progressif
+        let progress = 0;
         const progressInterval = setInterval(() => {
-          setUploadProgress(prev => {
-            if (prev >= 100) {
-              clearInterval(progressInterval);
-              onFileUpload(file);
-              return 100;
-            }
-            return prev + 10;
-          });
+          progress = Math.min(100, progress + 10);
+          setUploadProgress(progress);
+          if (progress >= 100) {
+            clearInterval(progressInterval);
+            onFileUpload(file);
+          }
         }, 100);
       }
     };
@@ -104,15 +103,14 @@ export function Dropzone({
     reader.onload = (e) => {
       const result = e.target?.result;
       if (result && typeof result === 'string') {
+        let progress = 0;
         const progressInterval = setInterval(() => {
-          setUploadProgress(prev => {
-            if (prev >= 100) {
-              clearInterval(progressInterval);
-              onFileUpload(file);
-              return 100;
-            }
-            return prev + 10;
-          });
+          progress = Math.min(100, progress + 10);
+          setUploadProgress(progress);
+          if (progress >= 100) {
+            clearInterval(progressInterval);
+            onFileUpload(file);
+          }
         }, 100);
       }
     };
