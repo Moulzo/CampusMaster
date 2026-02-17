@@ -6,6 +6,7 @@ import { ConfigModule } from '@nestjs/config';
 import { CoursesModule } from './courses/courses.module';
 import { AssignmentsModule } from './assignments/assignments.module';
 import { SubmissionsModule } from './submissions/submissions.module';
+import { AdminUsersModule } from './admin-users/admin-users.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { SubmissionsModule } from './submissions/submissions.module';
     CoursesModule,
     AssignmentsModule,
     SubmissionsModule,
+    AdminUsersModule,
     ConfigModule.forRoot({ isGlobal: true }),
   ],
   controllers: [AppController],
