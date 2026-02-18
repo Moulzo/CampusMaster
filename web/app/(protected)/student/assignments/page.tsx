@@ -46,6 +46,7 @@ export default function StudentAssignmentsPage() {
 
   const [submissionOriginalNames, setSubmissionOriginalNames] = useState<Record<string, string>>({});
   const [submittingId, setSubmittingId] = useState<string | null>(null);
+  const [deletingFileIndex, setDeletingFileIndex] = useState<{assignmentId: string, index: number} | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   const enrolledCourses = useMemo(() => {
@@ -154,6 +155,48 @@ export default function StudentAssignmentsPage() {
 
   function handleRemoveFile(index: number) {
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  }
+
+  async function handleDeleteSubmittedFile(assignmentId: string, fileIndex: number) {
+    if (!user) return;
+    
+    setDeletingFileIndex({assignmentId, index: fileIndex});
+    
+    try {
+      // Récupérer la soumission actuelle
+      const mySubmission = assignments.find(a => a.id === assignmentId)?.submissions?.find(s => s.studentId === user.id);
+      if (!mySubmission?.fileUrls) {
+        toast.push("error", "Aucun fichier à supprimer");
+        return;
+      }
+
+      // Parser les fichiers existants
+      let filesArray: FileInfo[] = [];
+      try {
+        filesArray = JSON.parse(mySubmission.fileUrls);
+      } catch {
+        toast.push("error", "Erreur lors de la lecture des fichiers");
+        return;
+      }
+
+      // Vérifier que l'index est valide
+      if (fileIndex < 0 || fileIndex >= filesArray.length) {
+        toast.push("error", "Fichier invalide");
+        return;
+      }
+
+      // Supprimer le fichier
+      const updatedFiles = filesArray.filter((_, i) => i !== fileIndex);
+      
+      // Mettre à jour la soumission avec le nouveau tableau
+      await handleSubmit(assignmentId, JSON.stringify(updatedFiles));
+      toast.push("success", "Fichier supprimé avec succès");
+    } catch (err) {
+      console.error('deleteSubmittedFile error', err);
+      toast.push("error", err instanceof Error ? err.message : "Erreur lors de la suppression");
+    } finally {
+      setDeletingFileIndex(null);
+    }
   }
 
   async function handleSubmit(assignmentId: string, fileUrl?: string, originalName?: string) {
@@ -309,19 +352,17 @@ export default function StudentAssignmentsPage() {
                                 }
                                 
                                 return filesArray.map((file, index) => (
-                                  <div key={index} className="flex items-center justify-between p-2 bg-slate-50 rounded border">
-                                    <div className="flex items-center gap-2">
-                                      <p className="truncate">{file.name}</p>
-                                      <span className="text-xs text-slate-500">({Math.round((file.size || 0) / 1024)} KB)</span>
+                                  <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                      <p className="truncate text-sm font-semibold text-slate-800">{file.name}</p>
+                                      <span className="text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded">{Math.round((file.size || 0) / 1024)} KB</span>
                                     </div>
                                     <button
-                                      onClick={() => {
-                                        // TODO: Implémenter suppression de fichier individuel
-                                        toast.push("info", "Suppression individuelle bientôt disponible");
-                                      }}
-                                      className="px-2 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 rounded transition"
+                                      onClick={() => handleDeleteSubmittedFile(a.id, index)}
+                                      disabled={deletingFileIndex?.assignmentId === a.id && deletingFileIndex?.index === index}
+                                      className="px-3 py-1 text-xs font-medium bg-red-100 hover:bg-red-200 text-red-700 rounded-lg transition shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                      Supprimer
+                                      {deletingFileIndex?.assignmentId === a.id && deletingFileIndex?.index === index ? "Suppression..." : "Supprimer"}
                                     </button>
                                   </div>
                                 ));
@@ -363,16 +404,16 @@ export default function StudentAssignmentsPage() {
                             
                             {selectedFiles.length > 0 && (
                               <div className="mt-2 space-y-2">
-                                <p className="text-sm font-medium text-emerald-700">Fichiers sélectionnés ({selectedFiles.length}):</p>
+                                <p className="text-sm font-bold text-emerald-700 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-200">Fichiers sélectionnés ({selectedFiles.length}):</p>
                                 {selectedFiles.map((file, index) => (
-                                  <div key={index} className="flex items-center justify-between p-2 bg-emerald-50 border border-emerald-200 rounded">
-                                    <div className="flex items-center gap-2">
-                                      <p className="truncate text-sm">{file.name}</p>
-                                      <span className="text-xs text-emerald-600">({Math.round(file.size / 1024)} KB)</span>
+                                  <div key={index} className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                      <p className="truncate text-sm font-semibold text-emerald-800">{file.name}</p>
+                                      <span className="text-xs font-medium text-emerald-600 bg-emerald-100 px-2 py-1 rounded">{Math.round(file.size / 1024)} KB</span>
                                     </div>
                                     <button
                                       onClick={() => handleRemoveFile(index)}
-                                      className="px-2 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 rounded transition"
+                                      className="px-3 py-1 text-xs font-medium bg-red-100 hover:bg-red-200 text-red-700 rounded-lg transition shrink-0"
                                     >
                                       Supprimer
                                     </button>
