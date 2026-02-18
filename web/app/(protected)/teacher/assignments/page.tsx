@@ -42,6 +42,7 @@ export default function TeacherAssignmentsPage() {
   const [dueDate, setDueDate] = useState("");
   const [maxScore, setMaxScore] = useState<string>("20");
   const [attachment, setAttachment] = useState<{ url: string; name?: string; size?: number; type?: string } | null>(null);
+  const [formCourseId, setFormCourseId] = useState<string>("");
 
   const [gradingBySubmissionId, setGradingBySubmissionId] = useState<Record<string, boolean>>({});
   const [editBySubmissionId, setEditBySubmissionId] = useState<Record<string, boolean>>({});
@@ -49,59 +50,48 @@ export default function TeacherAssignmentsPage() {
   const [lastSavedBySubmissionId, setLastSavedBySubmissionId] = useState<Record<string, string>>({});
 
   const courseOptions = useMemo(() => {
-    return [{ id: "", title: "Tous les cours" } as any, ...courses];
+    if (!courses || courses.length === 0) {
+      return [{ id: "", title: "Tous les cours" }];
+    }
+    return [{ id: "", title: "Tous les cours" }, ...courses];
   }, [courses]);
 
+  const filteredAssignments = useMemo(() => {
+    const selectedId = String(selectedCourseId || '');
+    
+    if (!selectedId || selectedId === "") return assignments;
+    
+    return assignments.filter((a) => String(a.courseId) === selectedId);
+  }, [assignments, selectedCourseId]);
+
   useEffect(() => {
-    if (authLoading) return;
-
-    if (!user) {
-      router.replace(`/login?next=/teacher/assignments`);
-      return;
-    }
-
-    if (user.role !== "TEACHER") {
-      router.replace(`/forbidden`);
-      return;
-    }
-
+    if (!user) return;
+    setLoading(true);
+    setError("");
     (async () => {
-      setLoading(true);
-      setError("");
       try {
-        const [c, a] = await Promise.all([getCourses(), getAssignments()]);
-        setCourses(c);
-        setAssignments(a);
+        const [coursesData, assignmentsData] = await Promise.all([
+          getCourses(),
+          getAssignments(),
+        ]);
+        setCourses(coursesData);
+        setAssignments(assignmentsData);
       } catch (e: any) {
         setError(e?.message ?? "Erreur");
       } finally {
         setLoading(false);
       }
     })();
-  }, [authLoading, user, router]);
+  }, [user]);
 
-  useEffect(() => {
-    if (!user || user.role !== "TEACHER") return;
-
-    (async () => {
-      setLoading(true);
-      setError("");
-      try {
-        const a = await getAssignments(selectedCourseId || undefined);
-        setAssignments(a);
-      } catch (e: any) {
-        setError(e?.message ?? "Erreur");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [selectedCourseId]);
+  // Remove the incorrect useEffect that was causing the error
+  // The submissions should only be loaded when toggleSubmissions is called
 
   async function handleCreateAssignment(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) return;
     if (!dueDate) return;
-    if (!selectedCourseId) {
+    if (!formCourseId) {
       setError("Sélectionne un cours pour créer un devoir.");
       return;
     }
@@ -119,7 +109,7 @@ export default function TeacherAssignmentsPage() {
         title,
         description || null,
         new Date(dueDate).toISOString(),
-        selectedCourseId,
+        formCourseId,
         {
           maxScore: ms,
           attachmentUrl: attachment?.url,
@@ -134,6 +124,7 @@ export default function TeacherAssignmentsPage() {
       setDueDate("");
       setMaxScore("20");
       setAttachment(null);
+      setFormCourseId("");
       setShowForm(false);
     } catch (e: any) {
       setError(e?.message ?? "Erreur");
@@ -150,35 +141,13 @@ export default function TeacherAssignmentsPage() {
         delete next[assignmentId];
         return next;
       });
-      return;
-    }
-
-    setError("");
-    try {
-      const subs = await getSubmissions(assignmentId);
-      setSubmissionsByAssignmentId((prev) => ({ ...prev, [assignmentId]: subs }));
-
-      setEditBySubmissionId((prev) => {
-        const next = { ...prev };
-        for (const s of subs) {
-          if (next[s.id] === undefined) {
-            next[s.id] = s.score === null && !s.correctedAt;
-          }
-        }
-        return next;
-      });
-
-      setDraftBySubmissionId((prev) => {
-        const next = { ...prev };
-        for (const s of subs) {
-          if (!next[s.id]) {
-            next[s.id] = { score: s.score === null ? "" : String(s.score), feedback: s.feedback ?? "" };
-          }
-        }
-        return next;
-      });
-    } catch (e: any) {
-      setError(e?.message ?? "Erreur");
+    } else {
+      try {
+        const subs = await getSubmissions(assignmentId);
+        setSubmissionsByAssignmentId((prev) => ({ ...prev, [assignmentId]: subs }));
+      } catch (e: any) {
+        console.error("Failed to load submissions", e);
+      }
     }
   }
 
@@ -186,16 +155,19 @@ export default function TeacherAssignmentsPage() {
     setDraftBySubmissionId((prev) => ({
       ...prev,
       [submission.id]: {
-        score: submission.score === null ? "" : String(submission.score),
+        score: submission.score?.toString() ?? "",
         feedback: submission.feedback ?? "",
       },
     }));
   }
 
-  async function handleGrade(submissionId: string, assignmentId: string, max: number) {
-    setError("");
+  async function handleGrade(submissionId: string, assignmentId: string) {
     const draft = draftBySubmissionId[submissionId];
-    const score = Number(draft?.score);
+    if (!draft) return;
+
+    const score = Number(draft.score);
+    const max = assignments.find((a) => a.id === assignmentId)?.maxScore ?? 20;
+
     if (Number.isNaN(score)) {
       setError("Score invalide");
       toast.push("error", "Score invalide");
@@ -246,6 +218,12 @@ export default function TeacherAssignmentsPage() {
             <h1 className="text-2xl font-bold text-slate-900">Devoirs</h1>
             <p className="text-sm text-slate-500 mt-1">Créez des devoirs et notez les soumissions</p>
           </div>
+          <button
+            onClick={() => setShowForm((v) => !v)}
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition"
+          >
+            {showForm ? "Fermer" : "Créer un devoir"}
+          </button>
         </div>
       </header>
 
@@ -256,7 +234,7 @@ export default function TeacherAssignmentsPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-lg shadow-md p-6 border border-slate-200 flex flex-col sm:flex-row gap-3 sm:items-end">
+        <div className="bg-white rounded-lg shadow-md p-6 border border-slate-200">
           <div className="flex-1">
             <label className="block text-sm font-medium text-slate-700 mb-2">Filtrer par cours</label>
             <select
@@ -271,13 +249,6 @@ export default function TeacherAssignmentsPage() {
               ))}
             </select>
           </div>
-
-          <button
-            onClick={() => setShowForm((v) => !v)}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition"
-          >
-            {showForm ? "Fermer" : "Créer un devoir"}
-          </button>
         </div>
 
         {showForm && (
@@ -295,6 +266,35 @@ export default function TeacherAssignmentsPage() {
                   />
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Cours *</label>
+                  <select
+                    value={formCourseId}
+                    onChange={(e) => setFormCourseId(e.target.value)}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                    required
+                  >
+                    <option value="">Sélectionner un cours</option>
+                    {courses.map((c: any) => (
+                      <option key={c.id} value={c.id}>
+                        {c.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Description</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={3}
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Date limite</label>
                   <input
                     type="datetime-local"
@@ -304,9 +304,6 @@ export default function TeacherAssignmentsPage() {
                     required
                   />
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Note max</label>
                   <input
@@ -318,292 +315,255 @@ export default function TeacherAssignmentsPage() {
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
                   />
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Fichier consigne (optionnel)</label>
-                  <input
-                    type="file"
-                    className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      setError("");
-                      setFormLoading(true);
-                      try {
-                        const up = await uploadFile(file);
-                        setAttachment({ url: up.fileUrl, name: file.name, size: file.size, type: file.type });
-                        toast.push("success", "Fichier consigne uploadé");
-                      } catch (err: any) {
-                        setError(err?.message ?? "Erreur");
-                        toast.push("error", err?.message ?? "Erreur upload");
-                      } finally {
-                        setFormLoading(false);
-                      }
-                    }}
-                  />
-                  {attachment?.url ? (
-                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-xs text-blue-700 font-medium truncate">{attachment.name}</span>
-                          <span className="text-xs text-blue-600">({Math.round((attachment.size ?? 0) / 1024)} KB)</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <a
-                            href={attachment.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            download={attachment.name ?? undefined}
-                            className="px-3 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg font-medium transition"
-                          >
-                            Voir
-                          </a>
-                          <button
-                            type="button"
-                            onClick={() => setAttachment(null)}
-                            className="px-3 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-medium transition"
-                          >
-                            Supprimer
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Description (optionnel)</label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                <label className="block text-sm font-medium text-slate-700 mb-2">Fichier consigne (optionnel)</label>
+                <input
+                  type="file"
+                  className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setError("");
+                    setFormLoading(true);
+                    try {
+                      const up = await uploadFile(file);
+                      setAttachment({ url: up.fileUrl, name: file.name, size: file.size, type: file.type });
+                      toast.push("success", "Fichier consigne uploadé");
+                    } catch (err: any) {
+                      setError(err?.message ?? "Erreur");
+                      toast.push("error", err?.message ?? "Erreur upload");
+                    } finally {
+                      setFormLoading(false);
+                    }
+                  }}
                 />
+                {attachment && (
+                  <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
+                    <p className="text-sm text-blue-700 truncate">{attachment.name}</p>
+                  </div>
+                )}
               </div>
 
-              <div className="flex gap-3">
-                <button
-                  type="submit"
-                  disabled={formLoading}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white rounded-lg font-medium transition"
-                >
-                  {formLoading ? "Création..." : "Créer"}
-                </button>
+              <div className="flex justify-end gap-3">
                 <button
                   type="button"
-                  onClick={() => setShowForm(false)}
-                  className="px-4 py-2 bg-slate-300 hover:bg-slate-400 text-slate-800 rounded-lg font-medium transition"
+                  onClick={() => {
+                    setShowForm(false);
+                    setTitle("");
+                    setDescription("");
+                    setDueDate("");
+                    setMaxScore("20");
+                    setAttachment(null);
+                    setFormCourseId("");
+                  }}
+                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition"
                 >
                   Annuler
                 </button>
+                <button
+                  type="submit"
+                  disabled={formLoading}
+                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white rounded-lg font-medium transition"
+                >
+                  {formLoading ? "Création..." : "Créer le devoir"}
+                </button>
               </div>
             </form>
-            <p className="text-xs text-slate-500 mt-4">Le devoir sera créé dans le cours sélectionné dans le filtre.</p>
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-4">
-          {assignments.length === 0 ? (
-            <div className="p-8 bg-slate-50 rounded-lg border border-dashed border-slate-300 text-center">
-              <p className="text-slate-600">Aucun devoir pour le moment.</p>
+        <div className="bg-white rounded-lg shadow-md border border-slate-200">
+          <div className="p-6 border-b border-slate-200">
+            <h2 className="text-lg font-bold text-slate-900">Liste des devoirs</h2>
+          </div>
+          {filteredAssignments.length === 0 ? (
+            <div className="p-8 text-center text-slate-500">
+              {selectedCourseId ? "Aucun devoir pour ce cours." : "Aucun devoir pour le moment."}
             </div>
           ) : (
-            assignments.map((a) => {
-              const subs = submissionsByAssignmentId[a.id];
-              return (
-                <div key={a.id} className="bg-white rounded-lg shadow-md border border-slate-200 p-6">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div>
+            <div className="divide-y divide-slate-200">
+              {filteredAssignments.map((a) => (
+                <div key={a.id} className="p-6">
+                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                    <div className="min-w-0">
                       <h3 className="text-lg font-bold text-slate-900">{a.title}</h3>
                       <p className="text-sm text-slate-600">Cours: {a.course?.title}</p>
                       <p className="text-sm text-slate-600">Date limite: {formatDate(a.dueDate)}</p>
                       <p className="text-sm text-slate-600">Note max: {a.maxScore ?? 20}</p>
+                      {a.description ? (
+                        <p className="text-sm text-slate-700 mt-2">{a.description}</p>
+                      ) : null}
                       {a.attachmentUrl ? (
-                        <div className="mt-1 flex items-center gap-2">
+                        <div className="mt-2">
                           <a
                             href={a.attachmentUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            download={a.attachmentName ?? undefined}
-                            className="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition"
+                            className="text-sm text-blue-600 hover:text-blue-800 underline"
                           >
-                            Télécharger consigne
+                            📎 {a.attachmentName || "Fichier consigne"}
                           </a>
-                          <span className="text-xs text-slate-500 truncate">{a.attachmentName ?? a.attachmentUrl}</span>
                         </div>
                       ) : null}
                     </div>
                     <button
                       onClick={() => toggleSubmissions(a.id)}
-                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-medium transition"
+                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition"
                     >
-                      {subs ? "Masquer les soumissions" : "Voir les soumissions"}
+                      {submissionsByAssignmentId[a.id] ? "Masquer" : "Voir"} les soumissions
                     </button>
                   </div>
 
-                  {subs && (
-                    <div className="mt-6 space-y-3">
-                      {subs.length === 0 ? (
-                        <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
-                          <p className="text-sm text-slate-600">Aucune soumission.</p>
-                        </div>
+                  {submissionsByAssignmentId[a.id] ? (
+                    <div className="mt-6">
+                      <h4 className="text-md font-semibold text-slate-900 mb-4">
+                        Soumissions ({submissionsByAssignmentId[a.id].length})
+                      </h4>
+                      {submissionsByAssignmentId[a.id].length === 0 ? (
+                        <p className="text-sm text-slate-500">Aucune soumission pour ce devoir.</p>
                       ) : (
-                        subs.map((s) => (
-                          <div key={s.id} className="p-4 border border-slate-200 rounded-lg">
-                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="font-semibold text-slate-900 truncate">
-                                  {s.student?.fullName} ({s.student?.email})
-                                </p>
-                                <p className="text-sm text-slate-600">Déposé: {formatDate(s.submittedAt)}</p>
-                                {(() => {
-                                // Parser les fichiers depuis le JSON
-                                let files = [];
-                                try {
-                                  files = JSON.parse(s.fileUrls || '[]');
-                                } catch {
-                                  files = [];
-                                }
-                                
-                                return files.length > 0 ? (
-                                  <div className="space-y-2">
-                                    {files.map((file: any, index: number) => (
-                                      <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
-                                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                                          <p className="text-sm font-semibold text-slate-800 truncate">{file.name}</p>
-                                          <span className="text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded">{Math.round((file.size || 0) / 1024)} KB</span>
-                                        </div>
-                                        <a
-                                          href={file.url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="shrink-0 px-3 py-1 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition"
-                                        >
-                                          Télécharger
-                                        </a>
+                        <div className="space-y-4">
+                          {submissionsByAssignmentId[a.id].map((s) => (
+                            <div key={s.id} className="p-4 border border-slate-200 rounded-lg">
+                              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="font-semibold text-slate-900 truncate">
+                                    {s.student?.fullName} ({s.student?.email})
+                                  </p>
+                                  <p className="text-sm text-slate-600">Déposé: {formatDate(s.submittedAt)}</p>
+                                  {(() => {
+                                    // Parser les fichiers depuis le JSON
+                                    let files = [];
+                                    try {
+                                      files = JSON.parse(s.fileUrls || '[]');
+                                    } catch {
+                                      files = [];
+                                    }
+                                    
+                                    return files.length > 0 ? (
+                                      <div className="space-y-2">
+                                        {files.map((file: any, index: number) => (
+                                          <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+                                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                                              <p className="text-sm font-semibold text-slate-800 truncate">{file.name}</p>
+                                              <span className="text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded">{Math.round((file.size || 0) / 1024)} KB</span>
+                                            </div>
+                                            <a
+                                              href={file.url}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="shrink-0 px-3 py-1 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition"
+                                            >
+                                              Télécharger
+                                            </a>
+                                          </div>
+                                        ))}
                                       </div>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <p className="text-sm text-slate-500">Aucun fichier</p>
-                                );
-                              })()}
+                                    ) : (
+                                      <p className="text-sm text-slate-500">Aucun fichier</p>
+                                    );
+                                  })()}
 
-                                <div className="mt-2 flex flex-wrap gap-2 items-center">
-                                  {s.correctedAt ? (
-                                    <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-full">
-                                      Corrigé
-                                    </span>
-                                  ) : (
-                                    <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full">
-                                      En attente
-                                    </span>
-                                  )}
-                                  {s.score !== null ? (
-                                    <span className="text-xs text-slate-600">Note: {s.score} / 20</span>
-                                  ) : null}
-                                  {s.correctedAt ? (
-                                    <span className="text-xs text-slate-500">Corrigé: {formatDate(s.correctedAt)}</span>
-                                  ) : null}
-                                  {lastSavedBySubmissionId[s.id] ? (
-                                    <span className="text-xs text-slate-500">Enregistré</span>
-                                  ) : null}
+                                  <div className="mt-2 flex flex-wrap gap-2 items-center">
+                                    {s.correctedAt ? (
+                                      <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-full">
+                                        Corrigé
+                                      </span>
+                                    ) : (
+                                      <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full">
+                                        En attente
+                                      </span>
+                                    )}
+                                    {s.score !== null ? (
+                                      <span className="text-xs text-slate-600">Note: {s.score} / 20</span>
+                                    ) : null}
+                                    {s.correctedAt ? (
+                                      <span className="text-xs text-slate-500">Corrigé: {formatDate(s.correctedAt)}</span>
+                                    ) : null}
+                                  </div>
                                 </div>
                               </div>
 
-                              <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                                {(() => {
-                                  const isEditing = editBySubmissionId[s.id] ?? (s.score === null && !s.correctedAt);
-                                  const draft = draftBySubmissionId[s.id] ?? {
-                                    score: s.score === null ? "" : String(s.score),
-                                    feedback: s.feedback ?? "",
-                                  };
-                                  const isGrading = gradingBySubmissionId[s.id] === true;
-
-                                  const updateDraft = (patch: Partial<{ score: string; feedback: string }>) => {
-                                    setDraftBySubmissionId((prev) => ({
-                                      ...prev,
-                                      [s.id]: {
-                                        score: patch.score ?? (prev[s.id]?.score ?? draft.score),
-                                        feedback: patch.feedback ?? (prev[s.id]?.feedback ?? draft.feedback),
-                                      },
-                                    }));
-                                  };
-
-                                  const startEdit = () => {
-                                    setEditBySubmissionId((prev) => ({ ...prev, [s.id]: true }));
-                                    setSubmissionDraftFromData(s);
-                                  };
-
-                                  const cancelEdit = () => {
-                                    setEditBySubmissionId((prev) => ({ ...prev, [s.id]: false }));
-                                    setSubmissionDraftFromData(s);
-                                  };
-
-                                  return (
-                                    <>
-                                      <input
-                                        type="number"
-                                        step="0.5"
-                                        min={0}
-                                        max={a.maxScore ?? 20}
-                                        value={draft.score}
-                                        placeholder={`/${a.maxScore ?? 20}`}
-                                        disabled={!isEditing || isGrading}
-                                        className={`w-28 px-3 py-2 border rounded-lg text-slate-900 ${
-                                          !isEditing || isGrading ? "bg-slate-100 border-slate-200" : "border-slate-300"
-                                        }`}
-                                        onChange={(e) => updateDraft({ score: e.target.value })}
-                                      />
-                                      <input
-                                        value={draft.feedback}
-                                        placeholder="Feedback"
-                                        disabled={!isEditing || isGrading}
-                                        className={`flex-1 min-w-[200px] px-3 py-2 border rounded-lg text-slate-900 ${
-                                          !isEditing || isGrading ? "bg-slate-100 border-slate-200" : "border-slate-300"
-                                        }`}
-                                        onChange={(e) => updateDraft({ feedback: e.target.value })}
-                                      />
-
-                                      {isEditing ? (
-                                        <>
-                                          <button
-                                            onClick={() => handleGrade(s.id, a.id, a.maxScore ?? 20)}
-                                            disabled={isGrading}
-                                            className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white rounded-lg font-medium transition"
-                                          >
-                                            {isGrading ? "Enregistrement..." : s.correctedAt ? "Enregistrer" : "Noter"}
-                                          </button>
-                                          <button
-                                            onClick={cancelEdit}
-                                            disabled={isGrading}
-                                            className="px-4 py-2 bg-slate-300 hover:bg-slate-400 disabled:bg-slate-200 text-slate-800 rounded-lg font-medium transition"
-                                          >
-                                            Annuler
-                                          </button>
-                                        </>
-                                      ) : (
+                              <div className="mt-4 border-t border-slate-200 pt-4">
+                                {editBySubmissionId[s.id] ? (
+                                  <div className="space-y-3">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                      <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-1">Note</label>
+                                        <input
+                                          type="number"
+                                          min={0}
+                                          max={a.maxScore ?? 20}
+                                          value={draftBySubmissionId[s.id]?.score ?? ""}
+                                          onChange={(e) =>
+                                            setDraftBySubmissionId((prev) => ({
+                                              ...prev,
+                                              [s.id]: { ...prev[s.id], score: e.target.value },
+                                            }))
+                                          }
+                                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                                        />
+                                      </div>
+                                      <div className="flex items-end">
                                         <button
-                                          onClick={startEdit}
-                                          className="px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg font-medium transition"
+                                          onClick={() => handleGrade(s.id, a.id)}
+                                          disabled={gradingBySubmissionId[s.id]}
+                                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-400 text-white rounded-lg font-medium transition"
                                         >
-                                          Modifier
+                                          {gradingBySubmissionId[s.id] ? "Enregistrement..." : "Enregistrer"}
                                         </button>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium text-slate-700 mb-1">Feedback</label>
+                                      <textarea
+                                        rows={3}
+                                        value={draftBySubmissionId[s.id]?.feedback ?? ""}
+                                        onChange={(e) =>
+                                          setDraftBySubmissionId((prev) => ({
+                                            ...prev,
+                                            [s.id]: { ...prev[s.id], feedback: e.target.value },
+                                          }))
+                                        }
+                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                                      />
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      {s.feedback && (
+                                        <div className="mb-2 p-2 bg-slate-50 rounded border border-slate-200">
+                                          <p className="text-sm text-slate-700">{s.feedback}</p>
+                                        </div>
                                       )}
-                                    </>
-                                  );
-                                })()}
+                                      {lastSavedBySubmissionId[s.id] && (
+                                        <p className="text-xs text-slate-500">Dernière sauvegarde: {formatDate(lastSavedBySubmissionId[s.id])}</p>
+                                      )}
+                                    </div>
+                                    <button
+                                      onClick={() => {
+                                        setEditBySubmissionId((prev) => ({ ...prev, [s.id]: true }));
+                                        setSubmissionDraftFromData(s);
+                                      }}
+                                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition"
+                                    >
+                                      Noter
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             </div>
-                          </div>
-                        ))
+                          ))}
+                        </div>
                       )}
                     </div>
-                  )}
+                  ) : null}
                 </div>
-              );
-            })
+              ))}
+            </div>
           )}
         </div>
       </main>
