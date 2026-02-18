@@ -12,6 +12,7 @@ import {
   getSubmissions,
   gradeSubmission,
   uploadFile,
+  deleteAssignment,
 } from "@/lib/assignments";
 import { useToast } from "@/lib/toast";
 
@@ -48,6 +49,7 @@ export default function TeacherAssignmentsPage() {
   const [editBySubmissionId, setEditBySubmissionId] = useState<Record<string, boolean>>({});
   const [draftBySubmissionId, setDraftBySubmissionId] = useState<Record<string, { score: string; feedback: string }>>({});
   const [lastSavedBySubmissionId, setLastSavedBySubmissionId] = useState<Record<string, string>>({});
+  const [deletingAssignmentId, setDeletingAssignmentId] = useState<string | null>(null);
 
   const courseOptions = useMemo(() => {
     if (!courses || courses.length === 0) {
@@ -130,6 +132,30 @@ export default function TeacherAssignmentsPage() {
       setError(e?.message ?? "Erreur");
     } finally {
       setFormLoading(false);
+    }
+  }
+
+  async function handleDeleteAssignment(assignmentId: string) {
+    if (!confirm("Êtes-vous sûr de vouloir supprimer ce devoir ? Toutes les soumissions seront également supprimées.")) {
+      return;
+    }
+
+    setDeletingAssignmentId(assignmentId);
+    try {
+      await deleteAssignment(assignmentId);
+      setAssignments((prev) => prev.filter((a) => a.id !== assignmentId));
+      // Also remove submissions from state if they exist
+      setSubmissionsByAssignmentId((prev) => {
+        const next = { ...prev };
+        delete next[assignmentId];
+        return next;
+      });
+      toast.push("success", "Devoir supprimé avec succès");
+    } catch (e: any) {
+      setError(e?.message ?? "Erreur");
+      toast.push("error", e?.message ?? "Erreur lors de la suppression");
+    } finally {
+      setDeletingAssignmentId(null);
     }
   }
 
@@ -408,12 +434,21 @@ export default function TeacherAssignmentsPage() {
                         </div>
                       ) : null}
                     </div>
-                    <button
-                      onClick={() => toggleSubmissions(a.id)}
-                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition"
-                    >
-                      {submissionsByAssignmentId[a.id] ? "Masquer" : "Voir"} les soumissions
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => toggleSubmissions(a.id)}
+                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition"
+                      >
+                        {submissionsByAssignmentId[a.id] ? "Masquer" : "Voir"} les soumissions
+                      </button>
+                      <button
+                        onClick={() => handleDeleteAssignment(a.id)}
+                        disabled={deletingAssignmentId === a.id}
+                        className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {deletingAssignmentId === a.id ? "Suppression..." : "Supprimer"}
+                      </button>
+                    </div>
                   </div>
 
                   {submissionsByAssignmentId[a.id] ? (
