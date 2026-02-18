@@ -31,6 +31,7 @@ export function Dropzone({
   }, []);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
+    console.log('Dropzone handleDrop called');
     e.preventDefault();
     setIsDragging(false);
 
@@ -38,6 +39,8 @@ export function Dropzone({
     const file = files[0];
     if (!file) return;
 
+    console.log('File dropped:', { name: file.name, size: file.size, type: file.type });
+
     // Vérifier la taille
     if (file.size > maxSize) {
       alert(`Fichier trop volumineux. Taille maximale: ${Math.round(maxSize / 1024 / 1024)}MB`);
@@ -53,34 +56,21 @@ export function Dropzone({
       return;
     }
 
-    // Simuler l'upload (dans un vrai cas, on enverrait à une API)
+    // Appeler directement onFileUpload avec le fichier
+    console.log('Calling onFileUpload with file');
+    setUploadProgress(100);
+    onFileUpload(file);
     setUploadProgress(0);
-    
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const result = e.target?.result;
-      if (result && typeof result === 'string') {
-        // Simuler un upload progressif
-        let progress = 0;
-        const progressInterval = setInterval(() => {
-          progress = Math.min(100, progress + 10);
-          setUploadProgress(progress);
-          if (progress >= 100) {
-            clearInterval(progressInterval);
-            onFileUpload(file);
-          }
-        }, 100);
-      }
-    };
-    
-    reader.readAsDataURL(file);
   }, [onFileUpload, accept, maxSize]);
 
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('Dropzone handleFileInput called');
     const files = e.target.files;
     const file = files?.[0];
     if (!file) return;
 
+    console.log('File selected:', { name: file.name, size: file.size, type: file.type });
+
     // Vérifier la taille
     if (file.size > maxSize) {
       alert(`Fichier trop volumineux. Taille maximale: ${Math.round(maxSize / 1024 / 1024)}MB`);
@@ -96,26 +86,11 @@ export function Dropzone({
       return;
     }
 
-    // Simuler l'upload
+    // Appeler directement onFileUpload avec le fichier
+    console.log('Calling onFileUpload with file');
+    setUploadProgress(100);
+    onFileUpload(file);
     setUploadProgress(0);
-    
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const result = e.target?.result;
-      if (result && typeof result === 'string') {
-        let progress = 0;
-        const progressInterval = setInterval(() => {
-          progress = Math.min(100, progress + 10);
-          setUploadProgress(progress);
-          if (progress >= 100) {
-            clearInterval(progressInterval);
-            onFileUpload(file);
-          }
-        }, 100);
-      }
-    };
-    
-    reader.readAsDataURL(file);
   }, [onFileUpload, accept, maxSize]);
 
   return (

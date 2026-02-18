@@ -43,11 +43,36 @@ export class SubmissionsService {
           assignmentId,
         },
       },
-      select: { id: true, correctedAt: true },
+      select: { id: true, correctedAt: true, fileUrls: true },
     });
 
     if (existing?.correctedAt) {
       throw new ForbiddenException('Submission is already corrected');
+    }
+
+    // Gérer les fichiers : si fileUrl est une chaîne JSON, la parser
+    interface FileInfo {
+      url: string;
+      name: string;
+      size: number;
+      type: string;
+    }
+    
+    let filesArray: FileInfo[] = [];
+    if (fileUrl) {
+      try {
+        // Essayer de parser comme JSON
+        const parsed = JSON.parse(fileUrl);
+        if (Array.isArray(parsed)) {
+          filesArray = parsed as FileInfo[];
+        } else {
+          // Si c'est une simple chaîne (compatibilité ancien format)
+          filesArray = [{ url: fileUrl, name: 'file', size: 0, type: 'application/octet-stream' }];
+        }
+      } catch {
+        // Si ce n'est pas du JSON, utiliser comme simple URL (compatibilité)
+        filesArray = [{ url: fileUrl, name: 'file', size: 0, type: 'application/octet-stream' }];
+      }
     }
 
     return this.prisma.submission.upsert({
@@ -60,10 +85,10 @@ export class SubmissionsService {
       create: {
         assignmentId,
         studentId,
-        fileUrl: fileUrl ?? null,
+        fileUrls: JSON.stringify(filesArray),
       },
       update: {
-        ...(fileUrl === undefined ? {} : { fileUrl: fileUrl ?? null }),
+        fileUrls: JSON.stringify(filesArray),
         submittedAt: new Date(),
       },
       include: {

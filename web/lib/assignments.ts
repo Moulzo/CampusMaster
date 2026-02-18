@@ -25,7 +25,7 @@ export interface Submission {
   id: string;
   assignmentId: string;
   studentId: string;
-  fileUrl: string | null;
+  fileUrls: string | null; // JSON array of file objects
   score: number | null;
   feedback: string | null;
   submittedAt: string;
@@ -73,6 +73,7 @@ export async function getAssignments(courseId?: string): Promise<Assignment[]> {
 }
 
 export async function uploadFile(file: File): Promise<{ fileUrl: string; originalName?: string }> {
+  console.log('uploadFile called', { file: file.name, size: file.size, type: file.type });
   const form = new FormData();
   form.append("file", file);
 
@@ -85,12 +86,16 @@ export async function uploadFile(file: File): Promise<{ fileUrl: string; origina
     cache: "no-store",
   });
 
+  console.log('uploadFile response status', res.status);
+
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
+    console.error('uploadFile error response', txt);
     throw new Error(txt || `Failed to upload file: ${res.status}`);
   }
 
   const data = await res.json();
+  console.log('uploadFile response data', data);
   if (!data?.fileUrl) {
     throw new Error("Upload failed: fileUrl manquant");
   }

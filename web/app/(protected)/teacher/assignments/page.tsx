@@ -457,21 +457,38 @@ export default function TeacherAssignmentsPage() {
                                   {s.student?.fullName} ({s.student?.email})
                                 </p>
                                 <p className="text-sm text-slate-600">Déposé: {formatDate(s.submittedAt)}</p>
-                                {s.fileUrl ? (
-                                  <div className="flex items-center gap-2">
-                                    <p className="text-sm text-slate-600 truncate">Fichier: {s.fileUrl}</p>
-                                    <a
-                                      href={s.fileUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="shrink-0 px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition"
-                                    >
-                                      Télécharger
-                                    </a>
+                                {(() => {
+                                // Parser les fichiers depuis le JSON
+                                let files = [];
+                                try {
+                                  files = JSON.parse(s.fileUrls || '[]');
+                                } catch {
+                                  files = [];
+                                }
+                                
+                                return files.length > 0 ? (
+                                  <div className="space-y-2">
+                                    {files.map((file: any, index: number) => (
+                                      <div key={index} className="flex items-center justify-between p-2 bg-slate-50 rounded border">
+                                        <div className="flex items-center gap-2">
+                                          <p className="text-sm text-slate-600 truncate">{file.name}</p>
+                                          <span className="text-xs text-slate-500">({Math.round((file.size || 0) / 1024)} KB)</span>
+                                        </div>
+                                        <a
+                                          href={file.url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="shrink-0 px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition"
+                                        >
+                                          Télécharger
+                                        </a>
+                                      </div>
+                                    ))}
                                   </div>
                                 ) : (
                                   <p className="text-sm text-slate-500">Aucun fichier</p>
-                                )}
+                                );
+                              })()}
 
                                 <div className="mt-2 flex flex-wrap gap-2 items-center">
                                   {s.correctedAt ? (
