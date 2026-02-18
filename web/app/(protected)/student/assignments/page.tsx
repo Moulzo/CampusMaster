@@ -213,8 +213,22 @@ export default function StudentAssignmentsPage() {
       const enrolledIds = new Set(enrolledCourses.map((c) => c.id));
       setAssignments(a.filter((x) => enrolledIds.has(x.courseId)));
     } catch (e: any) {
-      setError(e?.message ?? "Erreur");
-      toast.push("error", e?.message ?? "Erreur lors de la soumission");
+      const errorMessage = e?.message ?? "Erreur lors de la soumission";
+      
+      // Handle specific error cases with user-friendly messages
+      if (errorMessage.includes("Deadline has passed") || errorMessage.includes("date limite")) {
+        setError("La date limite de ce devoir est dépassée. Vous ne pouvez plus soumettre.");
+        toast.push("error", "La date limite est dépassée. La soumission n'est plus possible.");
+      } else if (errorMessage.includes("corrected")) {
+        setError("Ce devoir a déjà été noté. Vous ne pouvez plus le modifier.");
+        toast.push("error", "Le devoir a déjà été noté et ne peut plus être modifié.");
+      } else if (errorMessage.includes("enrolled")) {
+        setError("Vous n'êtes pas inscrit à ce cours.");
+        toast.push("error", "Vous devez être inscrit au cours pour soumettre ce devoir.");
+      } else {
+        setError(errorMessage);
+        toast.push("error", errorMessage);
+      }
     } finally {
       setSubmittingId(null);
     }
