@@ -142,11 +142,10 @@ export default function Notifications({ userId }: NotificationsProps) {
   };
 
   return (
-    <div className="relative">
-      {/* Notification Bell */}
+    <div className="fixed top-4 right-4 z-50">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-slate-600 hover:text-slate-900 transition-colors"
+        className="relative p-2 bg-white rounded-lg shadow-md border border-slate-200 hover:bg-slate-50 transition-colors"
       >
         <Bell className="w-5 h-5" />
         {unreadCount > 0 && (

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { apiFetch, getRefreshToken, AUTH_EVENT, clearTokens } from "@/lib/auth";
 import { AuthProvider, AuthUser } from "@/lib/auth-context";
 import { ToastProvider } from "@/lib/toast";
+import Notifications from "@/components/Notifications";
 
 const API_URL = "http://localhost:3001/api";
 
@@ -128,7 +129,15 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
 
   return (
     <AuthProvider user={user} loading={false}>
-      <ToastProvider>{children}</ToastProvider>
+      <ToastProvider>
+        <div className="min-h-screen bg-slate-50">
+          {/* Global Notifications */}
+          {user && <Notifications userId={user.id} />}
+          
+          {/* Main Content */}
+          {children}
+        </div>
+      </ToastProvider>
     </AuthProvider>
   );
 }
