@@ -88,6 +88,30 @@ export default function Notifications({ userId }: NotificationsProps) {
     }
   };
 
+  const deleteNotification = async (notificationId: string) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await fetch(`/api/notifications/${notificationId}`, {
+        method: 'DELETE',
+        headers: {
+          'x-user-id': userId,
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+      });
+
+      if (response.ok) {
+        setNotifications(prev => prev.filter(n => n.id !== notificationId));
+        setUnreadCount(prev => Math.max(0, prev - 1));
+        toast.push('success', 'Notification supprimée');
+      } else {
+        toast.push('error', 'Erreur lors de la suppression');
+      }
+    } catch (error) {
+      console.error('Delete notification error:', error);
+      toast.push('error', 'Erreur lors de la suppression');
+    }
+  };
+
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'NEW_ASSIGNMENT':
@@ -177,14 +201,22 @@ export default function Notifications({ userId }: NotificationsProps) {
                         <h4 className="font-medium text-slate-900 text-sm">
                           {notification.title}
                         </h4>
-                        {!notification.isRead && (
+                        <div className="flex items-center gap-2">
+                          {!notification.isRead && (
+                            <button
+                              onClick={() => markAsRead(notification.id)}
+                              className="text-xs text-blue-600 hover:text-blue-700"
+                            >
+                              Marquer comme lu
+                            </button>
+                          )}
                           <button
-                            onClick={() => markAsRead(notification.id)}
-                            className="text-xs text-blue-600 hover:text-blue-700"
+                            onClick={() => deleteNotification(notification.id)}
+                            className="text-xs text-red-600 hover:text-red-700"
                           >
-                            Marquer comme lu
+                            Supprimer
                           </button>
-                        )}
+                        </div>
                       </div>
                       <p className="text-slate-600 text-sm mt-1">
                         {notification.message}
