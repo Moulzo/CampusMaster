@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../email/email.service';
 
 type Role = 'STUDENT' | 'TEACHER' | 'ADMIN';
 
@@ -11,6 +12,7 @@ export class AuthService {
   constructor(
     private jwt: JwtService,
     private prisma: PrismaService,
+    private emailService: EmailService,
   ) {}
 
   private get accessSecret() {
@@ -244,15 +246,28 @@ export class AuthService {
       },
     });
 
-    // In a real app, you would send an email here
-    // For now, we'll just return the token (for development)
-    console.log(`Reset token for ${email}: ${resetToken}`);
-    
-    return { 
-      message: 'Si cet email existe, un email de réinitialisation a été envoyé.',
-      // Only return token in development
-      ...(process.env.NODE_ENV === 'development' && { resetToken })
-    };
+    try {
+      // Send email with reset token
+      await this.emailService.sendPasswordResetEmail(email, resetToken);
+      
+      return { 
+        message: 'Si cet email existe, un email de réinitialisation a été envoyé.',
+        // Only return token in development for testing
+        ...(process.env.NODE_ENV === 'development' && { resetToken })
+      };
+    } catch (emailError) {
+      console.error('Erreur email:', emailError);
+      // Fallback: return token in development even if email fails
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`Reset token for ${email}: ${resetToken}`);
+        return { 
+          message: 'Email non envoyé (erreur de configuration), mais voici le token pour le développement:',
+          resetToken 
+        };
+      }
+      
+      throw new BadRequestException('Impossible d\'envoyer l\'email de réinitialisation. Veuillez réessayer plus tard.');
+    }
   }
 
   async resetPassword(token: string, newPassword: string) {

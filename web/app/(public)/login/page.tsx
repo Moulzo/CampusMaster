@@ -68,9 +68,9 @@ function LoginInner() {
       clearTimeout(timeoutId);
 
       if (!res.ok) {
-        const text = await res.text();
-        setError(text || `HTTP ${res.status}`);
-        return;
+        const errorData = await res.json().catch(() => ({}));
+        const errorMessage = errorData.message || `Erreur ${res.status}`;
+        throw new Error(errorMessage);
       }
 
       const data = await res.json();
@@ -95,9 +95,15 @@ function LoginInner() {
       window.location.href = destination;
     } catch (e: any) {
       if (e?.name === 'AbortError') {
-        setError("Délai d'attente dépassé");
+        setError("Délai d'attente dépassé. Veuillez réessayer.");
+      } else if (e?.message?.includes('401') || e?.message?.includes('Unauthorized') || e?.message?.includes('Identifiants invalides')) {
+        setError("Email ou mot de passe incorrect. Veuillez vérifier vos identifiants.");
+      } else if (e?.message?.includes('404') || e?.message?.includes('User not found') || e?.message?.includes('Utilisateur non trouvé')) {
+        setError("Aucun compte trouvé avec cet email. Veuillez vérifier votre saisie.");
+      } else if (e?.message?.includes('403') || e?.message?.includes('Forbidden') || e?.message?.includes('Accès refusé')) {
+        setError("Accès refusé. Votre compte n'est peut-être pas activé.");
       } else {
-        setError(e?.message ?? "Erreur réseau");
+        setError("Une erreur est survenue lors de la connexion. Veuillez réessayer plus tard.");
       }
       setLoading(false); // ✅ Important: remettre loading à false en cas d'erreur
     }
