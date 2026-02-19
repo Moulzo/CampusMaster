@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { setTokens } from "@/lib/auth";
 
 const API_URL = "http://localhost:3001/api";
@@ -161,6 +162,15 @@ function LoginInner() {
               <p className="text-sm text-red-700 font-medium">{error}</p>
             </div>
           )}
+
+          <div className="text-center mt-4">
+            <Link
+              href="/forgot-password"
+              className="text-sm text-blue-600 hover:text-blue-500 font-medium"
+            >
+              Mot de passe oublié ?
+            </Link>
+          </div>
 
           <div className="border-t border-slate-200 pt-6">
             <p className="text-xs text-slate-500 font-semibold uppercase mb-3">

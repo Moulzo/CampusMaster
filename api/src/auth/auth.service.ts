@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
+import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 
 type Role = 'STUDENT' | 'TEACHER' | 'ADMIN';
@@ -218,5 +219,77 @@ export class AuthService {
       accessToken,
       refreshToken,
     };
+  }
+
+  async forgotPassword(email: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      // Don't reveal if user exists or not
+      return { message: 'Si cet email existe, un email de réinitialisation a été envoyé.' };
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenHash = await bcrypt.hash(resetToken, 10);
+    const resetTokenExpires = new Date(Date.now() + 3600000); // 1 hour
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        resetTokenHash,
+        resetTokenExpires,
+      },
+    });
+
+    // In a real app, you would send an email here
+    // For now, we'll just return the token (for development)
+    console.log(`Reset token for ${email}: ${resetToken}`);
+    
+    return { 
+      message: 'Si cet email existe, un email de réinitialisation a été envoyé.',
+      // Only return token in development
+      ...(process.env.NODE_ENV === 'development' && { resetToken })
+    };
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    const users = await this.prisma.user.findMany({
+      where: {
+        resetTokenExpires: {
+          gt: new Date(),
+        },
+      },
+    });
+
+    // Find user with matching reset token hash
+    let user: any = null;
+    for (const u of users) {
+      if (u.resetTokenHash && await bcrypt.compare(token, u.resetTokenHash)) {
+        user = u;
+        break;
+      }
+    }
+
+    if (!user) {
+      throw new BadRequestException('Token invalide ou expiré');
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update user password and clear reset token
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash: hashedPassword,
+        resetTokenHash: null,
+        resetTokenExpires: null,
+      },
+    });
+
+    return { message: 'Mot de passe réinitialisé avec succès' };
   }
 }

@@ -23,6 +23,8 @@ model User {
   passwordHash      String
   role              Role          @default(STUDENT)
   refreshTokenHash  String?
+  resetTokenHash    String?
+  resetTokenExpires DateTime?
   
   // Relations
   coursesCreated    Course[]      @relation("TeacherCourses")
