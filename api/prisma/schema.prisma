@@ -16,6 +16,14 @@ enum Role {
   ADMIN
 }
 
+enum NotificationType {
+  NEW_ASSIGNMENT
+  NEW_GRADE
+  DEADLINE_REMINDER
+  ANNOUNCEMENT
+  SYSTEM
+}
+
 model User {
   id                String        @id @default(cuid())
   email             String        @unique
@@ -31,6 +39,7 @@ model User {
   coursesEnrolled   Course[]      @relation("StudentCourses")
   assignmentsCreated Assignment[] @relation("TeacherAssignments")
   submissions       Submission[]
+  notifications     Notification[]
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 }
@@ -68,6 +77,7 @@ model Assignment {
   teacherId   String
   
   submissions Submission[]
+  notifications Notification[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -104,4 +114,26 @@ model SubmissionFile {
   createdAt     DateTime @default(now())
   
   @@id([submissionId, filename])
+}
+
+model Notification {
+  id          String           @id @default(cuid())
+  title       String
+  message     String
+  type        NotificationType
+  isRead      Boolean          @default(false)
+  
+  // Relations
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Optional: link to related entity
+  assignmentId String?
+  assignment   Assignment?      @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  
+  @@index([userId, isRead])
+  @@index([createdAt])
 }

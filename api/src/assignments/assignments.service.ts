@@ -3,12 +3,16 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { CreateAssignmentDto } from './dto/create-assignment.dto';
 import { UpdateAssignmentDto } from './dto/update-assignment.dto';
+import { NotificationService } from '../notifications/notifications.service';
 
 type Role = 'STUDENT' | 'TEACHER' | 'ADMIN' | string;
 
 @Injectable()
 export class AssignmentsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notificationService: NotificationService,
+  ) {}
 
   async create(createAssignmentDto: CreateAssignmentDto, teacherId: string) {
     // Vérifier que le teacher est bien le teacher du cours
@@ -30,7 +34,7 @@ export class AssignmentsService {
       throw new BadRequestException('maxScore must be between 1 and 1000');
     }
 
-    return this.prisma.assignment.create({
+    const assignment = await this.prisma.assignment.create({
       data: {
         title: createAssignmentDto.title,
         description: createAssignmentDto.description ?? null,
@@ -48,6 +52,13 @@ export class AssignmentsService {
           select: {
             id: true,
             title: true,
+            students: {
+              select: {
+                id: true,
+                email: true,
+                fullName: true,
+              },
+            },
           },
         },
         submissions: {
@@ -63,6 +74,26 @@ export class AssignmentsService {
         },
       },
     });
+
+    console.log(`[AssignmentsService] Assignment created: ${assignment.id} - ${assignment.title}`);
+    console.log(`[AssignmentsService] Course students count: ${assignment.course?.students?.length || 0}`);
+
+    // Send notifications to enrolled students (after assignment is created)
+    if (assignment.course?.students) {
+      for (const student of assignment.course.students) {
+        console.log(`[AssignmentsService] Sending notification to student: ${student.id} - ${student.email}`);
+        await this.notificationService.notifyNewAssignment(
+          student.id,
+          assignment.title,
+          assignment.course?.title || 'Cours inconnu',
+          assignment.id,
+        );
+      }
+    } else {
+      console.log(`[AssignmentsService] No students found in course ${assignment.course?.id}`);
+    }
+
+    return assignment;
   }
 
   async findAll(userId: string, role: Role, courseId?: string) {

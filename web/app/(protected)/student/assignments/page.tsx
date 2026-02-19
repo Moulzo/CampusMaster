@@ -13,6 +13,7 @@ import {
 } from "@/lib/assignments";
 import { Dropzone } from "@/components/Dropzone";
 import { useToast } from "@/lib/toast";
+import Notifications from "@/components/Notifications";
 
 interface FileInfo {
   url: string;
@@ -250,6 +251,9 @@ export default function StudentAssignmentsPage() {
             <h1 className="text-2xl font-bold text-slate-900">Devoirs</h1>
             <p className="text-sm text-slate-500 mt-1">Consultez vos devoirs et déposez vos fichiers</p>
           </div>
+          
+          {/* Notifications Component */}
+          {user && <Notifications userId={user.id} />}
         </div>
       </header>
 

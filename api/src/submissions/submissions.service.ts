@@ -1,9 +1,13 @@
 import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationService } from '../notifications/notifications.service';
 
 @Injectable()
 export class SubmissionsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notificationService: NotificationService,
+  ) {}
 
   async create(assignmentId: string, studentId: string, fileUrl?: string) {
     // Vérifier que l'étudiant est inscrit au cours du devoir
@@ -256,7 +260,7 @@ export class SubmissionsService {
       throw new BadRequestException(`score must be between 0 and ${maxScore}`);
     }
 
-    return this.prisma.submission.update({
+    const updatedSubmission = await this.prisma.submission.update({
       where: { id },
       data: {
         score,
@@ -268,16 +272,9 @@ export class SubmissionsService {
           select: {
             id: true,
             title: true,
-            description: true,
-            dueDate: true,
             maxScore: true,
-            attachmentUrl: true,
-            attachmentName: true,
-            attachmentSize: true,
-            attachmentMimeType: true,
             course: {
               select: {
-                id: true,
                 title: true,
               },
             },
