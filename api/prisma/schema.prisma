@@ -22,6 +22,7 @@ enum NotificationType {
   DEADLINE_REMINDER
   ANNOUNCEMENT
   SYSTEM
+  NEW_MESSAGE
 }
 
 model User {
@@ -122,6 +123,8 @@ model Notification {
   message     String
   type        NotificationType
   isRead      Boolean          @default(false)
+  readAt      DateTime?        // ✅ AJOUT
+  metadata    Json?            // ✅ AJOUT
   
   // Relations
   userId      String

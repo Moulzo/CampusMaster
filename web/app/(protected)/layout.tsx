@@ -2,10 +2,10 @@
 
 import { useEffect, useState, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { apiFetch, getRefreshToken, AUTH_EVENT, clearTokens } from "@/lib/auth";
+import { apiFetch, getRefreshToken, getAccessToken, AUTH_EVENT, clearTokens } from "@/lib/auth";
 import { AuthProvider, AuthUser } from "@/lib/auth-context";
 import { ToastProvider } from "@/lib/toast";
-import Notifications from "@/components/Notifications";
+import { NotificationPanel } from "@/components/notification-panel";
 
 const API_URL = "http://localhost:3001/api";
 
@@ -21,6 +21,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [error, setError] = useState<string>("");
+  const [token, setToken] = useState<string | null>(null);
 
   // ✅ Flag pour éviter double redirection
   const isRedirecting = useRef(false);
@@ -72,6 +73,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
 
       const data = await res.json();
       setUser(data?.user ?? null);
+      setToken(getAccessToken());
       setLoading(false);
     } catch (e: any) {
       if (e?.name === 'AbortError') {
@@ -97,12 +99,14 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
 
       if (type === "tokens:cleared") {
         setUser(null);
+        setToken(null);
         setLoading(false);
         hardRedirectToLogin(reason !== "logout");
       }
 
       if (type === "tokens:set") {
         // ✅ Nouveau login => recharger l'utilisateur
+        setToken(getAccessToken());
         loadUser();
       }
     };
@@ -131,8 +135,12 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
     <AuthProvider user={user} loading={false}>
       <ToastProvider>
         <div className="min-h-screen bg-slate-50">
-          {/* Global Notifications */}
-          {user && <Notifications userId={user.id} />}
+          {/* Notification Panel */}
+          {user && token && (
+            <div className="fixed top-4 right-4 z-50">
+              <NotificationPanel token={token} />
+            </div>
+          )}
           
           {/* Main Content */}
           {children}

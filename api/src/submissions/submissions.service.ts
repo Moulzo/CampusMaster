@@ -1,12 +1,12 @@
 import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { NotificationService } from '../notifications/notifications.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class SubmissionsService {
   constructor(
     private prisma: PrismaService,
-    private notificationService: NotificationService,
+    private notificationsService: NotificationsService,
   ) {}
 
   async create(assignmentId: string, studentId: string, fileUrl?: string) {

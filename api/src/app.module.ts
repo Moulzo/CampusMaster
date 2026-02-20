@@ -8,7 +8,8 @@ import { AssignmentsModule } from './assignments/assignments.module';
 import { SubmissionsModule } from './submissions/submissions.module';
 import { AdminUsersModule } from './admin-users/admin-users.module';
 import { FilesModule } from './files/files.module';
-import { NotificationModule } from './notifications/notifications.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { WebSocketsModule } from './websockets/websockets.module';
 
 @Module({
   imports: [
@@ -18,7 +19,8 @@ import { NotificationModule } from './notifications/notifications.module';
     SubmissionsModule,
     AdminUsersModule,
     FilesModule,
-    NotificationModule,
+    NotificationsModule,
+    WebSocketsModule,
     ConfigModule.forRoot({ isGlobal: true }),
   ],
   controllers: [AppController],

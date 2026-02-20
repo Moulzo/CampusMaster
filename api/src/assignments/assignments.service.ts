@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { CreateAssignmentDto } from './dto/create-assignment.dto';
 import { UpdateAssignmentDto } from './dto/update-assignment.dto';
-import { NotificationService } from '../notifications/notifications.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 type Role = 'STUDENT' | 'TEACHER' | 'ADMIN' | string;
 
@@ -11,7 +11,7 @@ type Role = 'STUDENT' | 'TEACHER' | 'ADMIN' | string;
 export class AssignmentsService {
   constructor(
     private prisma: PrismaService,
-    private notificationService: NotificationService,
+    private notificationsService: NotificationsService,
   ) {}
 
   async create(createAssignmentDto: CreateAssignmentDto, teacherId: string) {
@@ -82,7 +82,7 @@ export class AssignmentsService {
     if (assignment.course?.students) {
       for (const student of assignment.course.students) {
         console.log(`[AssignmentsService] Sending notification to student: ${student.id} - ${student.email}`);
-        await this.notificationService.notifyNewAssignment(
+        await this.notificationsService.notifyNewAssignment(
           student.id,
           assignment.title,
           assignment.course?.title || 'Cours inconnu',
