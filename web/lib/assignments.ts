@@ -236,5 +236,8 @@ export async function gradeSubmission(id: string, score: number, feedback?: stri
     const txt = await res.text().catch(() => "");
     throw new Error(txt || `Failed to grade submission: ${res.status}`);
   }
-  return res.json();
+
+  // ✅ safe parse (évite le crash si un jour le backend répond 204/empty)
+  const text = await res.text().catch(() => "");
+  return (text ? JSON.parse(text) : null) as Submission;
 }

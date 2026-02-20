@@ -272,9 +272,11 @@ export class SubmissionsService {
           select: {
             id: true,
             title: true,
-            maxScore: true,
+            description: true,
+            dueDate: true,
             course: {
               select: {
+                id: true,
                 title: true,
               },
             },
@@ -289,5 +291,28 @@ export class SubmissionsService {
         },
       },
     });
+
+    // ✅ Déclencher notification "devoir corrigé"
+    try {
+      await this.notificationsService.createNotification(
+        updatedSubmission.student.id,
+        '📊 Devoir corrigé',
+        `Ton devoir "${updatedSubmission.assignment.title}" a été corrigé : ${updatedSubmission.score}/${maxScore}`,
+        'NEW_GRADE',
+        {
+          assignmentId: updatedSubmission.assignment.id,
+          metadata: {
+            courseId: updatedSubmission.assignment.course.id,
+            score: updatedSubmission.score,
+            maxScore,
+          },
+        },
+      );
+    } catch (e) {
+      // Log uniquement - ne pas casser la logique métier
+      console.error('Failed to send grade notification:', e);
+    }
+
+    return updatedSubmission; // ✅ IMPORTANT
   }
 }

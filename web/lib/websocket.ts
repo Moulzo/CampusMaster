@@ -22,7 +22,8 @@ class WebSocketService {
       auth: {
         token: token,
       },
-      transports: ['websocket'],
+      withCredentials: true,
+      transports: ['polling', 'websocket'],
       reconnection: false, // Désactiver la reconnexion auto de socket.io (on gère manuellement)
     });
 

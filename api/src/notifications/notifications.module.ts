@@ -4,11 +4,11 @@ import { NotificationsController } from './notifications.controller';
 import { TestNotificationsController } from './test-notifications.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { WebSocketsModule } from '../websockets/websockets.module';
-import { NotificationsGateway } from '../websockets/notifications.gateway';
+import { DeadlineReminderService } from './deadline-reminder.service';
 
 @Module({
   imports: [PrismaModule, WebSocketsModule],
-  providers: [NotificationsService, NotificationsGateway],
+  providers: [NotificationsService, DeadlineReminderService],
   controllers: [NotificationsController, TestNotificationsController],
   exports: [NotificationsService],
 })

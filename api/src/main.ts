@@ -1,13 +1,17 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { join, basename } from 'path';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { IoAdapter } from "@nestjs/platform-socket.io";
 import * as express from 'express';
 import * as fs from 'fs';
+import { join, basename } from 'path';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  app.useWebSocketAdapter(new IoAdapter(app));
 
   app.setGlobalPrefix('api');
 

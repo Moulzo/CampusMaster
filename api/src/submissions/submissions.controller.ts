@@ -60,6 +60,7 @@ export class SubmissionsController {
       throw new BadRequestException('score is required');
     }
     const teacherId = req.user.id ?? req.user.sub;
-    return this.submissionsService.grade(id, dto.score, teacherId, dto.feedback);
+
+    return this.submissionsService.grade(id, dto.score, teacherId, dto.feedback); // ✅ return
   }
 }

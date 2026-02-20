@@ -3,6 +3,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { CoursesModule } from './courses/courses.module';
 import { AssignmentsModule } from './assignments/assignments.module';
 import { SubmissionsModule } from './submissions/submissions.module';
@@ -13,6 +14,7 @@ import { WebSocketsModule } from './websockets/websockets.module';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     AuthModule,
     CoursesModule,
     AssignmentsModule,

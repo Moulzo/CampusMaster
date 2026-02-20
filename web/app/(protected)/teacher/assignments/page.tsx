@@ -221,8 +221,10 @@ export default function TeacherAssignmentsPage() {
       setLastSavedBySubmissionId((prev) => ({ ...prev, [submissionId]: new Date().toISOString() }));
       toast.push("success", "Note enregistrée");
     } catch (e: any) {
-      setError(e?.message ?? "Erreur");
-      toast.push("error", e?.message ?? "Erreur lors de la notation");
+      console.error("Grade error:", e);
+      const msg = typeof e?.message === "string" ? e.message : "Erreur lors de la notation";
+      setError(msg);
+      toast.push("error", msg);
     } finally {
       setGradingBySubmissionId((prev) => ({ ...prev, [submissionId]: false }));
     }

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { WebSocketService } from './websocket-simple.service';
+import { NotificationsGateway } from './notifications.gateway';
 
 @Module({
   imports: [
@@ -9,7 +10,7 @@ import { WebSocketService } from './websocket-simple.service';
       signOptions: { expiresIn: '24h' },
     }),
   ],
-  providers: [WebSocketService],
+  providers: [WebSocketService, NotificationsGateway],
   exports: [WebSocketService, JwtModule],
 })
 export class WebSocketsModule {}
