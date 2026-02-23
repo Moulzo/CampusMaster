@@ -17,6 +17,7 @@ import { UpdateCourseDto } from './dto/update-course.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
+import { getUserId } from '../common/get-user-id';
 
 @ApiBearerAuth('access-token')
 @Controller('courses')
@@ -29,8 +30,7 @@ export class CoursesController {
   @Header('Cache-Control', 'no-store')
   @Header('Pragma', 'no-cache')
   create(@Body() dto: CreateCourseDto, @Request() req: any) {
-    // IMPORTANT: selon ta stratégie JWT, l’id est très souvent dans sub
-    const teacherId = req.user.id ?? req.user.sub;
+    const teacherId = getUserId(req);
     return this.coursesService.create(dto, teacherId);
   }
 
@@ -39,7 +39,7 @@ export class CoursesController {
   @Header('Cache-Control', 'no-store')
   @Header('Pragma', 'no-cache')
   findAll(@Request() req: any) {
-    const userId = req.user.id ?? req.user.sub;
+    const userId = getUserId(req);
     const role = req.user.role;
     return this.coursesService.findAll(userId, role);
   }
@@ -48,7 +48,7 @@ export class CoursesController {
   @UseGuards(JwtAuthGuard)
   @Header('Cache-Control', 'no-store')
   @Header('Pragma', 'no-cache')
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id') id: string, @Request() req: any) {
     return this.coursesService.findOne(id);
   }
 
@@ -58,7 +58,7 @@ export class CoursesController {
   @Header('Cache-Control', 'no-store')
   @Header('Pragma', 'no-cache')
   update(@Param('id') id: string, @Body() dto: UpdateCourseDto, @Request() req: any) {
-    const teacherId = req.user.id ?? req.user.sub;
+    const teacherId = getUserId(req);
     return this.coursesService.update(id, dto, teacherId);
   }
 
@@ -68,7 +68,7 @@ export class CoursesController {
   @Header('Cache-Control', 'no-store')
   @Header('Pragma', 'no-cache')
   remove(@Param('id') id: string, @Request() req: any) {
-    const teacherId = req.user.id ?? req.user.sub;
+    const teacherId = getUserId(req);
     return this.coursesService.remove(id, teacherId);
   }
 
@@ -77,7 +77,7 @@ export class CoursesController {
   @Header('Cache-Control', 'no-store')
   @Header('Pragma', 'no-cache')
   enrollStudent(@Param('id') courseId: string, @Request() req: any) {
-    const studentId = req.user.id ?? req.user.sub;
+    const studentId = getUserId(req);
     return this.coursesService.enrollStudent(courseId, studentId);
   }
 
@@ -86,7 +86,7 @@ export class CoursesController {
   @Header('Cache-Control', 'no-store')
   @Header('Pragma', 'no-cache')
   unenrollStudent(@Param('id') courseId: string, @Request() req: any) {
-    const studentId = req.user.id ?? req.user.sub;
+    const studentId = getUserId(req);
     return this.coursesService.unenrollStudent(courseId, studentId);
   }
 }
