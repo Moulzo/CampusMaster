@@ -12,7 +12,7 @@ export function getNavItems(role: Role): NavItem[] {
   if (role === "ADMIN") {
     return [
       { label: "Dashboard", href: "/admin", icon: "📊", enabled: true },
-      { label: "Utilisateurs", href: "/admin/users", icon: "👥", enabled: false },
+      { label: "Utilisateurs", href: "/admin/users", icon: "👥", enabled: true },
       { label: "Modules / Matières", href: "/admin/modules", icon: "📚", enabled: false },
       { label: "Statistiques", href: "/admin/stats", icon: "📈", enabled: false },
     ];

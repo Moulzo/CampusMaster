@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   Patch,
+  Post,
   Request,
   UseGuards,
   BadRequestException,
@@ -15,6 +16,7 @@ import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { AdminUsersService } from './admin-users.service';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
+import { AdminCreateUserDto } from '../admin/dto/admin-create-user.dto';
 
 @ApiTags('admin')
 @ApiBearerAuth('access-token')
@@ -46,5 +48,10 @@ export class AdminUsersController {
       throw new BadRequestException('You cannot delete your own account');
     }
     return this.adminUsers.remove(id);
+  }
+
+  @Post()
+  create(@Body() dto: AdminCreateUserDto) {
+    return this.adminUsers.create(dto);
   }
 }

@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:3001/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api";
 
 /**
  * Event global pour prévenir l'app qu'il y a eu login/logout.
@@ -92,11 +92,17 @@ export async function apiFetch(input: string, init: RequestInit = {}) {
   const headers = new Headers(init.headers || {});
   if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
 
-  let res = await fetch(input, { ...init, headers, cache: "no-store" });
+  // ✅ construit une vraie URL backend
+  const url =
+    input.startsWith("http")
+      ? input
+      : `${API_URL}${input.startsWith("/") ? input : `/${input}`}`;
 
+  let res = await fetch(url, { ...init, headers, cache: "no-store" });
+
+  // ✅ Gestion du 401 avec refresh automatique
   if (res.status !== 401) return res;
 
-  // 401 => tenter refresh (single-flight)
   const ok = await refreshTokens();
   if (!ok) return res;
 
@@ -104,8 +110,22 @@ export async function apiFetch(input: string, init: RequestInit = {}) {
   const headers2 = new Headers(init.headers || {});
   if (accessToken2) headers2.set("Authorization", `Bearer ${accessToken2}`);
 
-  res = await fetch(input, { ...init, headers: headers2, cache: "no-store" });
+  res = await fetch(url, { ...init, headers: headers2, cache: "no-store" });
   return res;
+}
+
+// ✅ helper pratique : renvoie directement le JSON ou throw une erreur lisible
+export async function apiFetchJson<T>(input: string, init: RequestInit = {}): Promise<T> {
+  const res = await apiFetch(input, init);
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(txt || `HTTP ${res.status}`);
+  }
+
+  // 204 No Content => pas de JSON
+  if (res.status === 204) return undefined as T;
+  return (await res.json()) as T;
 }
 
 export async function logout() {

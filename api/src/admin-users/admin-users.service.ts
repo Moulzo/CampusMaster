@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
+import { AdminCreateUserDto } from '../admin/dto/admin-create-user.dto';
 
 type Role = 'STUDENT' | 'TEACHER' | 'ADMIN';
 
@@ -114,5 +115,42 @@ export class AdminUsersService {
       }
       throw e;
     }
+  }
+
+  async create(dto: AdminCreateUserDto) {
+    // Option sécurité (recommandée) : empêcher la création d'ADMIN
+    if (dto.role === 'ADMIN') {
+      throw new ConflictException("Création d'un ADMIN non autorisée.");
+    }
+
+    const exists = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+      select: { id: true },
+    });
+
+    if (exists) {
+      throw new ConflictException("Email déjà utilisé.");
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+
+    const user = await this.prisma.user.create({
+      data: {
+        email: dto.email,
+        fullName: dto.fullName,
+        role: dto.role,
+        passwordHash,
+      },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    return user;
   }
 }
