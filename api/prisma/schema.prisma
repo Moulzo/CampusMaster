@@ -25,6 +25,10 @@ enum NotificationType {
   NEW_MESSAGE
 }
 
+enum ResourceType {
+  FILE
+}
+
 model User {
   id                String        @id @default(cuid())
   email             String        @unique
@@ -41,6 +45,7 @@ model User {
   assignmentsCreated Assignment[] @relation("TeacherAssignments")
   submissions       Submission[]
   notifications     Notification[]
+  courseResources   CourseResource[]
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 }
@@ -58,6 +63,7 @@ model Course {
   students    User[]   @relation("StudentCourses")
   
   assignments Assignment[]
+  courseResources CourseResource[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -139,4 +145,30 @@ model Notification {
   
   @@index([userId, isRead])
   @@index([createdAt])
+}
+
+model CourseResource {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  type        ResourceType @default(FILE)
+
+  // stockage local
+  filename    String   // nom affiché ou original
+  storedName  String   // nom unique généré (safe)
+  mimeType    String
+  size        Int
+  path        String   // chemin relatif (ex: "courses/<courseId>/<storedName>")
+
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId    String
+
+  teacher     User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId   String
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([courseId])
+  @@index([teacherId])
 }

@@ -11,6 +11,7 @@ import { AdminUsersModule } from './admin-users/admin-users.module';
 import { FilesModule } from './files/files.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { WebSocketsModule } from './websockets/websockets.module';
+import { CourseResourcesModule } from './course-resources/course-resources.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { WebSocketsModule } from './websockets/websockets.module';
     FilesModule,
     NotificationsModule,
     WebSocketsModule,
+    CourseResourcesModule,
     ConfigModule.forRoot({ isGlobal: true }),
   ],
   controllers: [AppController],
