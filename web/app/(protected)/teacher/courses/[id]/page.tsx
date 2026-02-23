@@ -5,6 +5,8 @@ import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { getCourse } from "@/lib/courses";
 import { CourseResourcesPanel } from "@/components/course-resources/CourseResourcesPanel";
+import { CourseAssignmentsTab } from "@/components/teacher/courses/CourseAssignmentsTab";
+import { CourseStudentsTab } from "@/components/teacher/courses/CourseStudentsTab";
 
 export default function TeacherCourseDetailPage() {
   const { user, loading: authLoading } = useAuth();
@@ -15,6 +17,7 @@ export default function TeacherCourseDetailPage() {
   const [course, setCourse] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
+  const [tab, setTab] = useState<"resources" | "assignments" | "students">("resources");
 
   useEffect(() => {
     if (authLoading) return;
@@ -96,23 +99,34 @@ export default function TeacherCourseDetailPage() {
       </div>
 
       {/* Onglets */}
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8">
-          <button className="py-2 px-1 border-b-2 border-blue-500 font-medium text-blue-600">
-            Supports de cours
-          </button>
-          <button className="py-2 px-1 border-b-2 border-transparent font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-            Devoirs
-          </button>
-          <button className="py-2 px-1 border-b-2 border-transparent font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-            Étudiants inscrits
-          </button>
-        </nav>
+      <div className="flex gap-6 border-b">
+        <button
+          className={`pb-2 ${tab === "resources" ? "text-blue-600 border-b-2 border-blue-600" : "text-zinc-600"}`}
+          onClick={() => setTab("resources")}
+        >
+          Supports de cours
+        </button>
+
+        <button
+          className={`pb-2 ${tab === "assignments" ? "text-blue-600 border-b-2 border-blue-600" : "text-zinc-600"}`}
+          onClick={() => setTab("assignments")}
+        >
+          Devoirs
+        </button>
+
+        <button
+          className={`pb-2 ${tab === "students" ? "text-blue-600 border-b-2 border-blue-600" : "text-zinc-600"}`}
+          onClick={() => setTab("students")}
+        >
+          Étudiants inscrits
+        </button>
       </div>
 
       {/* Contenu des onglets */}
       <div>
-        <CourseResourcesPanel courseId={courseId!} />
+        {tab === "resources" && <CourseResourcesPanel courseId={courseId!} />}
+        {tab === "assignments" && <CourseAssignmentsTab courseId={courseId!} />}
+        {tab === "students" && <CourseStudentsTab courseId={courseId!} />}
       </div>
     </div>
   );

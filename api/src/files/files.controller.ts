@@ -48,8 +48,8 @@ export class FilesController {
       return { fileUrl: null };
     }
 
-    const port = process.env.PORT ?? '3001';
-    const fileUrl = `http://localhost:${port}/uploads/${file.filename}`;
+    // ✅ URL relative pour éviter les problèmes CORS avec le proxy Next.js
+    const fileUrl = `/uploads/${file.filename}`;
 
     // Sauvegarder le mapping nom original -> nom de fichier
     const mappingPath = join(process.cwd(), 'uploads', 'filenames.json');

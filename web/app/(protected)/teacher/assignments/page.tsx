@@ -15,6 +15,27 @@ import {
   deleteAssignment,
 } from "@/lib/assignments";
 import { useToast } from "@/lib/toast";
+import { downloadWithAuth } from "@/lib/download";
+
+function extractFiles(submission: any): Array<{ url: string; name?: string; size?: number; type?: string }> {
+  // cas 1: tu as déjà un tableau (Prisma Json)
+  if (Array.isArray(submission.fileUrls)) return submission.fileUrls;
+
+  // cas 2: tu as une string JSON
+  if (typeof submission.fileUrls === "string" && submission.fileUrls.trim() !== "") {
+    try {
+      const v = JSON.parse(submission.fileUrls);
+      if (Array.isArray(v)) return v;
+    } catch {}
+  }
+
+  // cas 3: ancien modèle: un seul fileUrl
+  if (typeof submission.fileUrl === "string" && submission.fileUrl.trim() !== "") {
+    return [{ url: submission.fileUrl, name: submission.fileName, size: submission.fileSize, type: submission.fileMimeType }];
+  }
+
+  return [];
+}
 
 function formatDate(iso: string) {
   const d = new Date(iso);
@@ -471,30 +492,24 @@ export default function TeacherAssignmentsPage() {
                                   </p>
                                   <p className="text-sm text-slate-600">Déposé: {formatDate(s.submittedAt)}</p>
                                   {(() => {
-                                    // Parser les fichiers depuis le JSON
-                                    let files = [];
-                                    try {
-                                      files = JSON.parse(s.fileUrls || '[]');
-                                    } catch {
-                                      files = [];
-                                    }
+                                    const files = extractFiles(s);
                                     
                                     return files.length > 0 ? (
                                       <div className="space-y-2">
                                         {files.map((file: any, index: number) => (
                                           <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
                                             <div className="flex items-center gap-2 flex-1 min-w-0">
-                                              <p className="text-sm font-semibold text-slate-800 truncate">{file.name}</p>
-                                              <span className="text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded">{Math.round((file.size || 0) / 1024)} KB</span>
+                                              <p className="text-sm font-semibold text-slate-800 truncate">{file.name ?? "Fichier"}</p>
+                                              {typeof file.size === "number" && (
+                                                <span className="text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded">{Math.round(file.size / 1024)} KB</span>
+                                              )}
                                             </div>
-                                            <a
-                                              href={file.url}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
+                                            <button
+                                              onClick={() => downloadWithAuth(file.url, file.name)}
                                               className="shrink-0 px-3 py-1 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition"
                                             >
                                               Télécharger
-                                            </a>
+                                            </button>
                                           </div>
                                         ))}
                                       </div>
@@ -514,7 +529,7 @@ export default function TeacherAssignmentsPage() {
                                       </span>
                                     )}
                                     {s.score !== null ? (
-                                      <span className="text-xs text-slate-600">Note: {s.score} / 20</span>
+                                      <span className="text-xs text-slate-600">Note: {s.score} / {a.maxScore ?? 20}</span>
                                     ) : null}
                                     {s.correctedAt ? (
                                       <span className="text-xs text-slate-500">Corrigé: {formatDate(s.correctedAt)}</span>

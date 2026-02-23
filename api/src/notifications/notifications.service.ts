@@ -1,7 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { WebSocketService } from '../websockets/websocket-simple.service';
 import { NotificationType, Prisma } from '@prisma/client';
+
+function assertUserId(userId: string) {
+  if (!userId) throw new UnauthorizedException('Missing userId');
+}
 
 @Injectable()
 export class NotificationsService {
@@ -155,6 +159,7 @@ export class NotificationsService {
    * ✅ Récupérer les notifications d'un utilisateur
    */
   async getUserNotifications(userId: string, limit = 50) {
+    assertUserId(userId);
     try {
       const notifications = await this.prisma.notification.findMany({
         where: { userId },
@@ -174,6 +179,7 @@ export class NotificationsService {
    * ✅ Compter les notifications non lues
    */
   async getUnreadCount(userId: string) {
+    assertUserId(userId);
     try {
       const count = await this.prisma.notification.count({
         where: { 
@@ -190,9 +196,27 @@ export class NotificationsService {
   }
 
   /**
+   * ✅ Compter le total des notifications
+   */
+  async getTotalCount(userId: string) {
+    assertUserId(userId);
+    try {
+      const count = await this.prisma.notification.count({
+        where: { userId },
+      });
+
+      return count;
+    } catch (error) {
+      this.logger.error(`[TotalCount] Erreur:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * ✅ Marquer toutes comme lues
    */
   async markAllAsRead(userId: string) {
+    assertUserId(userId);
     try {
       const result = await this.prisma.notification.updateMany({
         where: {

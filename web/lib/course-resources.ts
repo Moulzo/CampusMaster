@@ -12,6 +12,33 @@ export type CourseResource = {
   teacher?: { id: string; fullName: string; email: string };
 };
 
+// Helper functions
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+export function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+export function getFileIcon(mimeType: string): string {
+  if (mimeType.includes('pdf')) return '📄';
+  if (mimeType.includes('powerpoint') || mimeType.includes('presentation')) return '📊';
+  if (mimeType.includes('word') || mimeType.includes('document')) return '📝';
+  if (mimeType.includes('image')) return '🖼️';
+  if (mimeType.includes('video')) return '🎥';
+  return '📎';
+}
+
 export function listCourseResources(courseId: string) {
   return apiFetchJson<CourseResource[]>(`/courses/${courseId}/resources`);
 }

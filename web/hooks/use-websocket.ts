@@ -23,10 +23,38 @@ export function useWebSocket(token: string | null) {
   const [error, setError] = useState<string | null>(null);
   
   const notificationsRef = useRef(notifications);
+  const tokenRef = useRef(token);
   
   useEffect(() => {
     notificationsRef.current = notifications;
   }, [notifications]);
+
+  useEffect(() => {
+    tokenRef.current = token;
+  }, [token]);
+
+  // ✅ Reset complet quand le user change (token différent)
+  useEffect(() => {
+    if (!token) {
+      console.log('[useWebSocket] 🧹 Reset complet - déconnexion');
+      setNotifications([]);
+      setUnreadCount(0);
+      setIsConnected(false);
+      setLoading(false);
+      setError(null);
+      websocketService.disconnect();
+      return;
+    }
+
+    // Si le token précédent était null ou différent, reset tout avant de recharger
+    if (tokenRef.current !== token) {
+      console.log('[useWebSocket] 🔄 User changé - reset des notifications');
+      setNotifications([]);
+      setUnreadCount(0);
+      setLoading(true);
+      setError(null);
+    }
+  }, [token]);
 
   // ✅ Phase 1 : Charger l'historique depuis l'API
   useEffect(() => {
