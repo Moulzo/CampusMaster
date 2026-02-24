@@ -4,6 +4,37 @@ import { useEffect, useState } from "react";
 import { getAssignments, createSubmission, uploadFile, Assignment } from "@/lib/assignments";
 import { useToast } from "@/lib/toast";
 
+function latestSubmission(subs: any[] | undefined) {
+  if (!subs || subs.length === 0) return null;
+  return [...subs].sort(
+    (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+  )[0];
+}
+
+function isCorrected(sub: any) {
+  return !!sub?.correctedAt || (sub?.score !== null && sub?.score !== undefined);
+}
+
+function computeLate(assignment: any, sub: any) {
+  if (!assignment?.dueDate) return { isLate: false, label: "" };
+
+  const due = new Date(assignment.dueDate);
+  if (Number.isNaN(due.getTime())) return { isLate: false, label: "" };
+
+  // pas de soumission -> en retard si now > due
+  if (!sub) {
+    const late = Date.now() > due.getTime();
+    return { isLate: late, label: late ? " (en retard)" : "" };
+  }
+
+  // soumission -> en retard seulement si déposé après la deadline
+  const submittedAt = sub?.submittedAt ? new Date(sub.submittedAt) : null;
+  if (!submittedAt || Number.isNaN(submittedAt.getTime())) return { isLate: false, label: "" };
+
+  const late = submittedAt.getTime() > due.getTime();
+  return { isLate: late, label: late ? " (déposé en retard)" : "" };
+}
+
 interface StudentAssignmentsTabProps {
   courseId: string;
 }
@@ -67,8 +98,10 @@ export function StudentAssignmentsTab({ courseId }: StudentAssignmentsTabProps) 
   return (
     <div className="space-y-4">
       {assignments.map((assignment) => {
-        const hasSubmitted = assignment.submissions && assignment.submissions.length > 0;
-        const isOverdue = assignment.dueDate && new Date(assignment.dueDate) < new Date();
+        const sub = latestSubmission(assignment.submissions);
+        const hasSubmitted = !!sub;
+        const corrected = isCorrected(sub);
+        const { isLate, label: lateLabel } = computeLate(assignment, sub);
         
         return (
           <div key={assignment.id} className="border rounded-lg p-4">
@@ -81,9 +114,9 @@ export function StudentAssignmentsTab({ courseId }: StudentAssignmentsTabProps) 
                 
                 <div className="flex items-center gap-4 mt-2 text-sm text-slate-500">
                   {assignment.dueDate && (
-                    <span className={isOverdue ? "text-red-600 font-medium" : ""}>
-                      📅 Limite: {new Date(assignment.dueDate).toLocaleDateString('fr-FR')}
-                      {isOverdue && " (en retard)"}
+                    <span className={isLate ? "text-red-600 font-medium" : ""}>
+                      📅 Limite: {new Date(assignment.dueDate).toLocaleDateString("fr-FR")}
+                      {isLate && lateLabel}
                     </span>
                   )}
                   {assignment.maxScore && (
@@ -92,8 +125,17 @@ export function StudentAssignmentsTab({ courseId }: StudentAssignmentsTabProps) 
                 </div>
 
                 {hasSubmitted && (
-                  <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded text-green-700 text-sm">
-                    ✅ Déjà déposé ({assignment.submissions!.length} fichier{assignment.submissions!.length > 1 ? 's' : ''})
+                  <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded text-green-700 text-sm flex items-center justify-between">
+                    <span>
+                      ✅ Déjà déposé ({assignment.submissions!.length} fichier
+                      {assignment.submissions!.length > 1 ? "s" : ""})
+                    </span>
+
+                    {corrected && (
+                      <span className="text-emerald-800 font-medium">
+                        Corrigé : {sub?.score ?? "-"} / {assignment.maxScore ?? 20}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
@@ -107,9 +149,10 @@ export function StudentAssignmentsTab({ courseId }: StudentAssignmentsTabProps) 
                     const file = e.target.files?.[0];
                     if (file) {
                       handleFileUpload(assignment.id, file);
+                      e.target.value = ""; // Reset pour pouvoir re-uploader le même fichier
                     }
                   }}
-                  disabled={uploading === assignment.id}
+                  disabled={uploading === assignment.id || corrected}
                 />
                 
                 <label
@@ -117,6 +160,8 @@ export function StudentAssignmentsTab({ courseId }: StudentAssignmentsTabProps) 
                   className={`inline-block px-4 py-2 rounded cursor-pointer text-sm font-medium transition-colors ${
                     uploading === assignment.id
                       ? "bg-slate-100 text-slate-500 cursor-not-allowed"
+                      : corrected
+                      ? "bg-emerald-50 text-emerald-700 cursor-not-allowed"
                       : hasSubmitted
                       ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
                       : "bg-blue-600 text-white hover:bg-blue-700"
@@ -124,6 +169,8 @@ export function StudentAssignmentsTab({ courseId }: StudentAssignmentsTabProps) 
                 >
                   {uploading === assignment.id
                     ? "Dépôt en cours..."
+                    : corrected
+                    ? "Corrigé"
                     : hasSubmitted
                     ? "Remplacer"
                     : "Déposer"}

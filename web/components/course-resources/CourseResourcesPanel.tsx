@@ -3,7 +3,13 @@
 import { useEffect, useState } from "react";
 import { listCourseResources, uploadCourseResource, downloadCourseResource, deleteCourseResource, type CourseResource, formatFileSize, formatDate, getFileIcon } from "@/lib/course-resources";
 
-export function CourseResourcesPanel({ courseId }: { courseId: string }) {
+export function CourseResourcesPanel({
+  courseId,
+  readOnly = false,
+}: {
+  courseId: string;
+  readOnly?: boolean;
+}) {
   const [items, setItems] = useState<CourseResource[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -28,6 +34,7 @@ export function CourseResourcesPanel({ courseId }: { courseId: string }) {
   }, [courseId]);
 
   async function onDelete(resourceId: string) {
+    if (readOnly) return;
     if (downloadingIds.has(resourceId) || saving) return;
     if (!confirm("Êtes-vous sûr de vouloir supprimer ce support ?")) {
       return;
@@ -60,6 +67,7 @@ export function CourseResourcesPanel({ courseId }: { courseId: string }) {
   }
 
   async function onUpload() {
+    if (readOnly) return;
     if (saving || downloadingIds.size > 0) return;
     if (!file) return alert("Choisis un fichier.");
     if (!title.trim()) return alert("Titre requis.");
@@ -90,7 +98,8 @@ export function CourseResourcesPanel({ courseId }: { courseId: string }) {
     <div className="space-y-4">
       <h2 className="text-xl font-semibold">Supports de cours</h2>
 
-      <div className="border rounded-lg p-4 space-y-3 bg-white">
+      {!readOnly && (
+        <div className="border rounded-lg p-4 space-y-3 bg-white">
         <div>
           <label className="block text-sm font-medium">Titre</label>
           <input 
@@ -138,7 +147,8 @@ export function CourseResourcesPanel({ courseId }: { courseId: string }) {
         >
           {saving ? "Upload..." : "Ajouter le support"}
         </button>
-      </div>
+        </div>
+      )}
 
       {loading ? (
         <p>Chargement…</p>
@@ -171,13 +181,15 @@ export function CourseResourcesPanel({ courseId }: { courseId: string }) {
                   >
                     {downloadingIds.has(r.id) ? "Téléchargement..." : "Télécharger"}
                   </button>
-                  <button
-                    className="text-red-600 underline disabled:opacity-50"
-                    onClick={() => onDelete(r.id)}
-                    disabled={downloadingIds.has(r.id) || saving}
-                  >
-                    Supprimer
-                  </button>
+                  {!readOnly && (
+                    <button
+                      className="text-red-600 underline disabled:opacity-50"
+                      onClick={() => onDelete(r.id)}
+                      disabled={downloadingIds.has(r.id) || saving}
+                    >
+                      Supprimer
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

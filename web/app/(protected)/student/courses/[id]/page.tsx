@@ -97,7 +97,7 @@ export default function StudentCourseDetailPage() {
       {tab === "resources" && (
         // CourseResourcesPanel doit déjà refuser l'upload si pas teacher,
         // sinon tu peux créer un "StudentResourcesPanel" read-only.
-        <CourseResourcesPanel courseId={courseId!} />
+        <CourseResourcesPanel courseId={courseId!} readOnly />
       )}
 
       {tab === "assignments" && <StudentAssignmentsTab courseId={courseId!} />}
