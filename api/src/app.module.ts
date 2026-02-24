@@ -12,6 +12,9 @@ import { FilesModule } from './files/files.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { WebSocketsModule } from './websockets/websockets.module';
 import { CourseResourcesModule } from './course-resources/course-resources.module';
+import { SemestersModule } from './semesters/semesters.module';
+import { AdminModule } from './admin/admin.module';
+import { AcademicsModule } from './academics/academics.module';
 
 @Module({
   imports: [
@@ -25,6 +28,9 @@ import { CourseResourcesModule } from './course-resources/course-resources.modul
     NotificationsModule,
     WebSocketsModule,
     CourseResourcesModule,
+    SemestersModule,
+    AdminModule,
+    AcademicsModule,
     ConfigModule.forRoot({ isGlobal: true }),
   ],
   controllers: [AppController],

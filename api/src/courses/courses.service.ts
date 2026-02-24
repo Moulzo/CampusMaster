@@ -15,6 +15,7 @@ export class CoursesService {
         title: createCourseDto.title,
         description: createCourseDto.description ?? null,
         teacherId,
+        learningModuleId: createCourseDto.learningModuleId ?? null,
       },
       include: {
         teacher: {
@@ -24,6 +25,7 @@ export class CoursesService {
             fullName: true,
           },
         },
+        learningModule: { include: { semester: true } },
         students: {
           select: {
             id: true,
@@ -41,6 +43,7 @@ export class CoursesService {
       return this.prisma.course.findMany({
         include: {
           teacher: { select: { id: true, email: true, fullName: true } },
+          learningModule: { include: { semester: true } },
           students: { select: { id: true, email: true, fullName: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -53,6 +56,7 @@ export class CoursesService {
         where: { teacherId: userId },
         include: {
           teacher: { select: { id: true, email: true, fullName: true } },
+          learningModule: { include: { semester: true } },
           students: { select: { id: true, email: true, fullName: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -63,6 +67,7 @@ export class CoursesService {
     return this.prisma.course.findMany({
       include: {
         teacher: { select: { id: true, email: true, fullName: true } },
+        learningModule: { include: { semester: true } },
         students: { select: { id: true, email: true, fullName: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -74,6 +79,7 @@ export class CoursesService {
       where: { id },
       include: {
         teacher: { select: { id: true, email: true, fullName: true } },
+        learningModule: { include: { semester: true } },
         students: { select: { id: true, email: true, fullName: true } },
       },
     });

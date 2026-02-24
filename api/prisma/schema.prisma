@@ -52,10 +52,38 @@ model User {
 
 // PostgreSQL gère nativement les enums avec l'enum Role ci-dessus
 
+model Semester {
+  id          String   @id @default(cuid())
+  name        String   // ex: "S1 2025-2026"
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  learningModules     LearningModule[]
+}
+
+model LearningModule {
+  id          String   @id @default(cuid())
+  name        String   // ex: "Data", "Informatique"
+  description String?
+  semester    Semester @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  semesterId  String
+
+  subjects    Course[] // les "matières"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 model Course {
   id          String   @id @default(cuid())
   title       String
   description String?
+
+  // ✅ nouveau : rattacher la matière à un module
+  learningModule      LearningModule?  @relation(fields: [learningModuleId], references: [id], onDelete: SetNull)
+  learningModuleId    String?
+
   teacher     User     @relation("TeacherCourses", fields: [teacherId], references: [id], onDelete: Cascade)
   teacherId   String
   

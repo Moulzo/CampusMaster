@@ -93,15 +93,24 @@ export default function AdminPage() {
                   >
                     <span>👥</span> Gérer Utilisateurs
                   </Link>
-                  <button className="px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition flex items-center justify-center gap-2">
-                    <span>📚</span> Gérer Cours
-                  </button>
-                  <button className="px-4 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition flex items-center justify-center gap-2">
-                    <span>⚙️</span> Paramètres
-                  </button>
-                  <button className="px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition flex items-center justify-center gap-2">
-                    <span>📋</span> Journaux
-                  </button>
+                  <Link 
+                    href="/admin/semesters"
+                    className="px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition flex items-center justify-center gap-2"
+                  >
+                    <span>�</span> Semestres
+                  </Link>
+                  <Link 
+                    href="/admin/modules"
+                    className="px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition flex items-center justify-center gap-2"
+                  >
+                    <span>📚</span> Modules
+                  </Link>
+                  <Link 
+                    href="/admin/subjects"
+                    className="px-4 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition flex items-center justify-center gap-2"
+                  >
+                    <span>�</span> Matières
+                  </Link>
                 </div>
               </div>
 

@@ -27,7 +27,7 @@ export default function TeacherCourseDetailPage() {
       return;
     }
     if (user.role !== "TEACHER") {
-      router.replace(`/login?next=/teacher/courses/${courseId}`);
+      router.replace(`/`); // ou /unauthorized
       return;
     }
 
@@ -86,6 +86,14 @@ export default function TeacherCourseDetailPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">{course.title}</h1>
+          {course.learningModule ? (
+            <p className="text-sm text-slate-600 mt-1">
+              {course.learningModule.semester?.name ? `${course.learningModule.semester.name} / ` : ""}
+              {course.learningModule.name}
+            </p>
+          ) : (
+            <p className="text-sm text-slate-500 mt-1">Non affectée à un module</p>
+          )}
           {course.description && (
             <p className="text-gray-600 mt-2">{course.description}</p>
           )}
