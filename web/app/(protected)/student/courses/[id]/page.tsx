@@ -83,7 +83,7 @@ export default function StudentCourseDetailPage() {
           className={`pb-2 ${tab === "resources" ? "text-blue-600 border-b-2 border-blue-600" : "text-zinc-600"}`}
           onClick={() => setTab("resources")}
         >
-          Supports
+          Supports de cours
         </button>
 
         <button
@@ -95,8 +95,6 @@ export default function StudentCourseDetailPage() {
       </div>
 
       {tab === "resources" && (
-        // CourseResourcesPanel doit déjà refuser l'upload si pas teacher,
-        // sinon tu peux créer un "StudentResourcesPanel" read-only.
         <CourseResourcesPanel courseId={courseId!} readOnly />
       )}
 
