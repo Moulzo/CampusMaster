@@ -46,6 +46,10 @@ model User {
   submissions       Submission[]
   notifications     Notification[]
   courseResources   CourseResource[]
+  
+  // ✅ Nouveau : cours où l'user est prof (many-to-many)
+  teachingCourses   Course[]      @relation("CourseTeachers")
+  
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 }
@@ -84,8 +88,12 @@ model Course {
   learningModule      LearningModule?  @relation(fields: [learningModuleId], references: [id], onDelete: SetNull)
   learningModuleId    String?
 
-  teacher     User     @relation("TeacherCourses", fields: [teacherId], references: [id], onDelete: Cascade)
-  teacherId   String
+  // ✅ Ancien : relation legacy (gardée pour backfill)
+  teacher     User?    @relation("TeacherCourses", fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId   String?
+  
+  // ✅ Nouveau : plusieurs profs (many-to-many)
+  teachers    User[]   @relation("CourseTeachers")
   
   // Many-to-many: students enrolled in this course
   students    User[]   @relation("StudentCourses")

@@ -4,6 +4,7 @@ import { AdminLearningModulesController } from './admin-learning-modules.control
 import { AdminSubjectsController } from './admin-subjects.controller';
 import { SemestersService } from '../semesters/semesters.service';
 import { LearningModulesService } from '../modules/modules.service';
+import { CoursesService } from '../courses/courses.service';
 import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
@@ -16,6 +17,7 @@ import { PrismaModule } from '../prisma/prisma.module';
   providers: [
     SemestersService,
     LearningModulesService,
+    CoursesService,
   ],
 })
 export class AdminModule {}

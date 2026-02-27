@@ -1,109 +1,79 @@
-import {
-  Controller,
-  Get,
-  Put,
-  Param,
-  Body,
-  UseGuards,
-  Header,
-  BadRequestException,
-} from '@nestjs/common';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
-import { PrismaService } from '../prisma/prisma.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { Roles } from '../auth/roles.decorator';
-import { RolesGuard } from '../auth/roles.guard';
-import { SetSubjectModuleDto } from '../modules/dto/learning-module.dto';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from "@nestjs/common";
+import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth, ApiBody, ApiConsumes } from "@nestjs/swagger";
+import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { RolesGuard } from "../auth/roles.guard";
+import { Roles } from "../auth/roles.decorator";
+import { CreateSubjectDto, UpdateSubjectDto } from "./dto/admin-subject.dto";
+import { SetTeachersDto } from "./dto/set-teachers.dto";
+import { CoursesService } from "../courses/courses.service";
 
-@ApiTags('admin-subjects')
-@ApiBearerAuth('access-token')
-@Controller('admin/subjects')
+@ApiTags("admin-subjects")
+@ApiBearerAuth('access-token') // ✅ IMPORTANT pour que Swagger envoie Authorization
+@Controller("admin/subjects")
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('ADMIN')
+@Roles("ADMIN")
 export class AdminSubjectsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly coursesService: CoursesService) {}
 
   @Get()
-  @Header('Cache-Control', 'no-store')
-  @Header('Pragma', 'no-cache')
-  list() {
-    return this.prisma.course.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: {
-        teacher: { select: { id: true, email: true, fullName: true } },
-        learningModule: {
-          include: { semester: true },
-        },
-      },
-    });
+  @ApiOperation({ summary: "Get all subjects with filters" })
+  @ApiQuery({ name: 'moduleId', required: false, type: String })
+  @ApiQuery({ name: 'teacherId', required: false, type: String })
+  async findAll(@Query('moduleId') moduleId?: string, @Query('teacherId') teacherId?: string) {
+    // Pour l'instant, on utilise findAll existant et on filtre côté service si besoin
+    // TODO: créer une méthode adminFindAll avec filtres
+    const courses = await this.coursesService.findAll('admin', 'ADMIN');
+    
+    let filtered = courses;
+    if (moduleId) {
+      filtered = filtered.filter(course => course.learningModuleId === moduleId);
+    }
+    if (teacherId) {
+      filtered = filtered.filter(course => 
+        course.teacherId === teacherId || 
+        course.teachers?.some(teacher => teacher.id === teacherId)
+      );
+    }
+    
+    return filtered;
   }
 
-  @Put(':courseId/module')
-  @Header('Cache-Control', 'no-store')
-  @Header('Pragma', 'no-cache')
-  async setModule(
-    @Param('courseId') courseId: string,
-    @Body() setSubjectModuleDto: SetSubjectModuleDto,
-  ) {
-    // Vérifier que le cours existe
-    const course = await this.prisma.course.findUnique({
-      where: { id: courseId },
-    });
-
-    if (!course) {
-      throw new BadRequestException('Course not found');
-    }
-
-    // Vérifier que le module existe
-    const module = await this.prisma.learningModule.findUnique({
-      where: { id: setSubjectModuleDto.learningModuleId },
-    });
-
-    if (!module) {
-      throw new BadRequestException('Learning module not found');
-    }
-
-    return this.prisma.course.update({
-      where: { id: courseId },
-      data: { learningModuleId: setSubjectModuleDto.learningModuleId },
-      include: {
-        learningModule: true,
-        teacher: {
-          select: {
-            id: true,
-            fullName: true,
-            email: true,
-          },
-        },
-      },
-    });
+  @Get(':id')
+  @ApiOperation({ summary: "Get subject by ID" })
+  async findOne(@Param('id') id: string) {
+    return this.coursesService.findOne(id);
   }
 
-  @Put(':courseId/unset-module')
-  @Header('Cache-Control', 'no-store')
-  @Header('Pragma', 'no-cache')
-  async unsetModule(@Param('courseId') courseId: string) {
-    // Vérifier que le cours existe
-    const course = await this.prisma.course.findUnique({
-      where: { id: courseId },
-    });
+  @Post()
+  @ApiOperation({ summary: "Create subject (course)" })
+  create(@Body() dto: CreateSubjectDto) {
+    return this.coursesService.adminCreateSubject(dto);
+  }
 
-    if (!course) {
-      throw new BadRequestException('Course not found');
-    }
+  @Put(':id')
+  @ApiOperation({ summary: "Update subject (course)" })
+  update(@Param('id') id: string, @Body() dto: UpdateSubjectDto) {
+    return this.coursesService.adminUpdateSubject(id, dto);
+  }
 
-    return this.prisma.course.update({
-      where: { id: courseId },
-      data: { learningModuleId: null },
-      include: {
-        teacher: {
-          select: {
-            id: true,
-            fullName: true,
-            email: true,
-          },
-        },
-      },
-    });
+  @Delete(':id')
+  @ApiOperation({ summary: "Delete subject (course)" })
+  remove(@Param('id') id: string) {
+    return this.coursesService.adminDeleteSubject(id);
+  }
+
+  // ✅ set complet (recommandé)
+  @Put(':id/teachers')
+  @ApiOperation({ summary: "Set teachers for a subject (replace list)" })
+  @ApiBody({ type: SetTeachersDto }) // ✅ Swagger affiche un JSON
+  @ApiConsumes("application/json")
+  setTeachers(@Param('id') id: string, @Body() dto: SetTeachersDto) {
+    return this.coursesService.adminSetTeachers(id, dto.teacherIds ?? []);
+  }
+
+  @Delete(':id/teachers/:teacherId')
+  @ApiOperation({ summary: "Remove one teacher from a subject" })
+  removeTeacher(@Param('id') id: string, @Param('teacherId') teacherId: string) {
+    return this.coursesService.adminRemoveTeacher(id, teacherId);
   }
 }
