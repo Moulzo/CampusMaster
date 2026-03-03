@@ -50,9 +50,9 @@ export default function StudentAssignmentsPage() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   const enrolledCourses = useMemo(() => {
-    if (!user) return [];
-    return courses.filter((c) => c.students.some((s) => s.id === user.id));
-  }, [courses, user]);
+  // Nouveau modèle: l'API /courses pour STUDENT doit déjà renvoyer uniquement les cours accessibles
+  return courses;
+}, [courses]);
 
   const courseOptions = useMemo(() => {
     return [{ id: "", title: "Tous mes cours" } as any, ...enrolledCourses];
@@ -92,11 +92,25 @@ export default function StudentAssignmentsPage() {
       setLoading(true);
       setError("");
       try {
-        const a = await getAssignments(selectedCourseId || undefined);
-        // UI: ne montrer que les devoirs des cours où l'étudiant est inscrit
-        const enrolledIds = new Set(enrolledCourses.map((c) => c.id));
-        const filtered = a.filter((x) => enrolledIds.has(x.courseId));
-        setAssignments(filtered);
+        const courseIds = enrolledCourses.map((c) => c.id).filter(Boolean);
+
+        if (!courseIds.length) {
+          setAssignments([]);
+          return;
+        }
+
+        let a = [];
+        if (selectedCourseId) {
+          a = await getAssignments(selectedCourseId);
+        } else {
+          const all = await Promise.all(courseIds.map((id) => getAssignments(id)));
+          a = all.flat();
+        }
+
+        const seen = new Set<string>();
+        a = a.filter((x: any) => (seen.has(x.id) ? false : (seen.add(x.id), true)));
+
+        setAssignments(a);
       } catch (e: any) {
         setError(e?.message ?? "Erreur");
       } finally {
@@ -275,7 +289,7 @@ export default function StudentAssignmentsPage() {
           </select>
           {enrolledCourses.length === 0 && (
             <p className="text-sm text-slate-500 mt-3">
-              Tu n'es inscrit à aucun cours. Va dans "Mes cours" pour t'inscrire.
+              Tu n'es inscrit à aucun cours. Va dans "Mes matières" pour accéder à tes cours.
             </p>
           )}
         </div>

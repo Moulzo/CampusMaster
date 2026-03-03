@@ -63,11 +63,15 @@ export default function AdminUserDetailPage() {
         } else {
           await unsetStudentModule(user.id);
         }
-      } else {
-        // si on passe à TEACHER/ADMIN, on peut nettoyer l'affectation module
-        // (safe, vu que l'endpoint existe déjà)
+      } else if (user.learningModuleId) {
+        // si on passe à TEACHER/ADMIN, nettoyer seulement si l'utilisateur avait un module
         await unsetStudentModule(user.id);
       }
+
+      // 3) rafraîchir user pour avoir l'état DB exact (learningModuleId/learningModule)
+      const fresh = await adminGetUser(user.id);
+      setUser(fresh);
+      setLearningModuleId(fresh.learningModuleId ?? "");
 
       alert("Utilisateur mis a jour ✅");
     } catch (e: any) {

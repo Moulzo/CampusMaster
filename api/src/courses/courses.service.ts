@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, ForbiddenException, BadRequestException, NotFoundException, GoneException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
@@ -180,36 +180,6 @@ export class CoursesService {
 
     return this.prisma.course.delete({
       where: { id },
-    });
-  }
-
-  async enrollStudent(courseId: string, studentId: string) {
-    return this.prisma.course.update({
-      where: { id: courseId },
-      data: {
-        students: {
-          connect: { id: studentId },
-        },
-      },
-      include: {
-        teachers: { select: { id: true, email: true, fullName: true } },
-        students: { select: { id: true, email: true, fullName: true } },
-      },
-    });
-  }
-
-  async unenrollStudent(courseId: string, studentId: string) {
-    return this.prisma.course.update({
-      where: { id: courseId },
-      data: {
-        students: {
-          disconnect: { id: studentId },
-        },
-      },
-      include: {
-        teachers: { select: { id: true, email: true, fullName: true } },
-        students: { select: { id: true, email: true, fullName: true } },
-      },
     });
   }
 

@@ -86,7 +86,7 @@ export class CoursesController {
   })
   @Header('Cache-Control', 'no-store')
   @Header('Pragma', 'no-cache')
-  enrollStudent(@Param('id') courseId: string, @Request() req: any) {
+  deprecatedEnrollStudent(@Param('id') courseId: string, @Request() req: any) {
     throw new GoneException("Inscription manuelle désactivée: l'inscription se fait via l'affectation au module.");
   }
 
@@ -101,7 +101,7 @@ export class CoursesController {
   })
   @Header('Cache-Control', 'no-store')
   @Header('Pragma', 'no-cache')
-  unenrollStudent(@Param('id') courseId: string, @Request() req: any) {
+  deprecatedUnenrollStudent(@Param('id') courseId: string, @Request() req: any) {
     throw new GoneException("Désinscription manuelle désactivée: l'accès dépend du module.");
   }
 }

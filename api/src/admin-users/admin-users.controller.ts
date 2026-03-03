@@ -30,7 +30,7 @@ export class AdminUsersController {
   @Get()
 @ApiQuery({ name: 'role', required: false, enum: ['ADMIN', 'TEACHER', 'STUDENT'] })
 async findAll(@Query('role') role?: 'ADMIN' | 'TEACHER' | 'STUDENT') {
-  return this.adminUsers.findAll({ role });
+  return this.adminUsers.findAll(role ? { role } : undefined);
 }
 
   @Get(':id')

@@ -34,6 +34,8 @@ export class AdminUsersService {
         role: true,
         createdAt: true,
         updatedAt: true,
+        // ✅ bonus: learningModuleId pour affichage dans table admin
+        learningModuleId: true,
       },
       orderBy: { fullName: 'asc' },
     });
@@ -92,6 +94,11 @@ export class AdminUsersService {
         throw new BadRequestException('Role invalide');
       }
       data.role = role;
+
+      // ✅ garde la DB cohérente même sans front
+      if (role !== 'STUDENT') {
+        data.learningModuleId = null;
+      }
     }
 
     if (dto.password !== undefined) {
@@ -113,6 +120,14 @@ export class AdminUsersService {
           role: true,
           createdAt: true,
           updatedAt: true,
+          learningModuleId: true,
+          learningModule: {
+            select: {
+              id: true,
+              name: true,
+              semester: { select: { id: true, name: true } },
+            },
+          },
         },
       });
 
