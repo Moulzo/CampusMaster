@@ -1,5 +1,11 @@
 import { apiFetch } from './auth';
 
+// Helper pour une meilleure gestion des erreurs
+async function throwApiError(res: Response, fallback: string) {
+  const txt = await res.text().catch(() => "");
+  throw new Error(txt || fallback);
+}
+
 // Types simplifiés pour l'admin
 export type Semester = {
   id: string;
@@ -16,14 +22,29 @@ export type LearningModule = {
   semester?: { id: string; name: string };
 };
 
+// Ajoute un type simple si tu ne l'as pas déjà
+export type SimpleTeacher = {
+  id: string;
+  email: string;
+  fullName?: string | null;
+};
+
 export type Course = {
   id: string;
   title: string;
   description?: string | null;
-  teacherId: string;
-  teacher?: { id: string; email: string; fullName: string };
   learningModuleId?: string | null;
   learningModule?: LearningModule | null;
+
+  // ancien champ possible (nullable)
+  teacherUserId?: string | null;
+  teacher?: { id: string; email: string; fullName: string } | null;
+
+  // ✅ nouveau / attendu
+  teachers?: SimpleTeacher[];
+
+  // optionnel
+  students?: any[];
 };
 
 export interface CreateSemesterDto {
@@ -110,26 +131,162 @@ export async function deleteLearningModule(id: string) {
 }
 
 // Subjects (Courses) API
-export async function getSubjects() {
-  const res = await apiFetch('/admin/subjects');
-  if (!res.ok) throw new Error('Failed to fetch subjects');
-  return res.json() as Promise<Course[]>;
+export type Subject = {
+  id: string;
+  title: string;
+  description: string | null;
+  learningModuleId: string | null;
+  learningModule?: {
+    id: string;
+    name: string;
+    semester?: { id: string; name: string };
+  } | null;
+  teachers: Array<{ id: string; email: string; fullName: string | null }>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function getSubjects(filters?: { moduleId?: string; teacherId?: string }) {
+  const params = new URLSearchParams();
+  if (filters?.moduleId) params.append("moduleId", filters.moduleId);
+  if (filters?.teacherId) params.append("teacherId", filters.teacherId);
+
+  const url = `/admin/subjects${params.toString() ? `?${params}` : ""}`;
+  const res = await apiFetch(url);
+  if (!res.ok) await throwApiError(res, "Failed to fetch subjects");
+  return res.json() as Promise<Subject[]>;
 }
 
-export async function setSubjectModule(courseId: string, learningModuleId: string) {
-  const res = await apiFetch(`/admin/subjects/${courseId}/module`, {
+export async function createSubject(input: {
+  title: string;
+  description?: string | null;
+  learningModuleId?: string | null;
+}) {
+  const res = await apiFetch(`/admin/subjects`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      title: input.title,
+      description: input.description ?? null,
+      // ✅ on envoie null si vide, jamais une string vide
+      learningModuleId: input.learningModuleId ? input.learningModuleId : null,
+    }),
+  });
+
+  if (!res.ok) await throwApiError(res, "Failed to create subject");
+  return res.json() as Promise<Subject>;
+}
+
+export async function updateSubject(id: string, input: {
+  title?: string;
+  description?: string | null;
+  learningModuleId?: string | null;
+}) {
+  const body: any = {};
+  if (input.title !== undefined) body.title = input.title;
+  if (input.description !== undefined) body.description = input.description;
+  if (input.learningModuleId !== undefined)
+    body.learningModuleId = input.learningModuleId || null;
+
+  const res = await apiFetch(`/admin/subjects/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) await throwApiError(res, "Failed to update subject");
+  return res.json() as Promise<Subject>;
+}
+
+export async function deleteSubject(id: string) {
+  const res = await apiFetch(`/admin/subjects/${id}`, { method: "DELETE" });
+  if (!res.ok) await throwApiError(res, "Failed to delete subject");
+  return res.json();
+}
+
+// ✅ Wrappers simples autour de updateSubject (logique centralisée)
+export async function setSubjectModule(subjectId: string, learningModuleId: string) {
+  return updateSubject(subjectId, { learningModuleId });
+}
+
+export async function unsetSubjectModule(subjectId: string) {
+  return updateSubject(subjectId, { learningModuleId: null });
+}
+
+// ✅ SET profs (remplace toute la liste)
+export async function setSubjectTeachers(subjectId: string, teacherIds: string[]) {
+  const res = await apiFetch(`/admin/subjects/${subjectId}/teachers`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ teacherIds }),
+  });
+  if (!res.ok) await throwApiError(res, 'Failed to set subject teachers');
+  return res.json() as Promise<Subject>;
+}
+
+// ✅ retirer 1 prof
+export async function removeSubjectTeacher(subjectId: string, userId: string) {
+  const res = await apiFetch(`/admin/subjects/${subjectId}/teachers/${userId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) await throwApiError(res, 'Failed to remove subject teacher');
+  return res.json() as Promise<Subject>;
+}
+
+// ✅ récupérer tous les professeurs
+export async function getTeachers() {
+  const res = await apiFetch('/admin/users?role=TEACHER');
+  if (!res.ok) await throwApiError(res, 'Failed to fetch teachers');
+  return res.json() as Promise<Array<{ id: string; email: string; fullName?: string | null; role: string }>>;
+}
+
+// Types pour les étudiants
+export type Student = {
+  id: string;
+  email: string;
+  fullName: string;
+  role: string;
+  learningModuleId?: string | null;
+  learningModule?: {
+    id: string;
+    name: string;
+    semester?: {
+      id: string;
+      name: string;
+    };
+  } | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+// ✅ récupérer tous les étudiants
+export async function getStudents(filters?: { moduleId?: string; q?: string }) {
+  const params = new URLSearchParams();
+  if (filters?.moduleId) params.append('moduleId', filters.moduleId);
+  if (filters?.q) params.append('q', filters.q);
+  
+  const url = `/admin/students${params.toString() ? `?${params.toString()}` : ''}`;
+  const res = await apiFetch(url);
+  if (!res.ok) throw new Error('Failed to fetch students');
+  return res.json() as Promise<Student[]>;
+}
+
+// ✅ affecter un étudiant à un module
+export async function setStudentModule(studentId: string, learningModuleId: string) {
+  const res = await apiFetch(`/admin/students/${studentId}/module`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ learningModuleId }),
   });
-  if (!res.ok) throw new Error('Failed to set subject module');
-  return res.json() as Promise<Course>;
+  if (!res.ok) throw new Error('Failed to set student module');
+  return res.json() as Promise<Student>;
 }
 
-export async function unsetSubjectModule(courseId: string) {
-  const res = await apiFetch(`/admin/subjects/${courseId}/unset-module`, {
+// ✅ désaffecter un étudiant d'un module
+export async function unsetStudentModule(studentId: string) {
+  const res = await apiFetch(`/admin/students/${studentId}/unset-module`, {
     method: 'PUT',
   });
-  if (!res.ok) throw new Error('Failed to unset subject module');
-  return res.json() as Promise<Course>;
+  if (!res.ok) throw new Error('Failed to unset student module');
+  return res.json() as Promise<Student>;
 }

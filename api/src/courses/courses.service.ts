@@ -6,26 +6,26 @@ import { CreateSubjectDto, UpdateSubjectDto } from '../admin/dto/admin-subject.d
 
 type Role = 'STUDENT' | 'TEACHER' | 'ADMIN' | string;
 
+type SimpleUser = { id: string; email: string; fullName: string };
+
 @Injectable()
 export class CoursesService {
   constructor(private prisma: PrismaService) {}
+
+  private normalizeTeachersList<T extends { teachers?: any[] | null }>(courses: T[]) {
+  return courses.map(c => ({ ...c, teachers: c.teachers ?? [] }));
+}
 
   async create(createCourseDto: CreateCourseDto, teacherId: string) {
     return this.prisma.course.create({
       data: {
         title: createCourseDto.title,
         description: createCourseDto.description ?? null,
-        teacherId,
         learningModuleId: createCourseDto.learningModuleId ?? null,
-      },
+        teachers: { connect: [{ id: teacherId }] }, // ✅ nouveau modèle
+      } as any, // temporaire pour contourner les types Prisma
       include: {
-        teacher: {
-          select: {
-            id: true,
-            email: true,
-            fullName: true,
-          },
-        },
+        teachers: { select: { id: true, email: true, fullName: true } },
         learningModule: { include: { semester: true } },
         students: {
           select: {
@@ -41,63 +41,112 @@ export class CoursesService {
   async findAll(userId: string, role: Role) {
     // ADMIN: tous les cours
     if (role === 'ADMIN') {
-      return this.prisma.course.findMany({
+      const courses = await this.prisma.course.findMany({
         include: {
-          teacher: { select: { id: true, email: true, fullName: true } },
           teachers: { select: { id: true, email: true, fullName: true } },
           learningModule: { include: { semester: true } },
-          students: { select: { id: true, email: true, fullName: true } },
+          students: { select: { id: true, email: true, fullName: true } }, // ok pour admin
         },
         orderBy: { createdAt: 'desc' },
       });
+
+      return this.normalizeTeachersList(courses);
     }
 
-    // TEACHER: ses cours créés
+    // TEACHER: uniquement ses cours (nouveau modèle)
     if (role === 'TEACHER') {
-      return this.prisma.course.findMany({
-        where: { teacherId: userId },
+      const courses = await this.prisma.course.findMany({
+        where: {
+          teachers: { some: { id: userId } },
+        },
         include: {
-          teacher: { select: { id: true, email: true, fullName: true } },
           teachers: { select: { id: true, email: true, fullName: true } },
           learningModule: { include: { semester: true } },
-          students: { select: { id: true, email: true, fullName: true } },
+          students: { select: { id: true, email: true, fullName: true } }, // ok si tu l'affiches côté teacher/admin
         },
         orderBy: { createdAt: 'desc' },
       });
+
+      return this.normalizeTeachersList(courses);
     }
 
-    // ✅ STUDENT: tous les cours (pour afficher "cours disponibles" + "mes inscriptions" côté front)
-    return this.prisma.course.findMany({
+    // ✅ STUDENT: uniquement les cours du module de l'étudiant
+    const student = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, learningModuleId: true },
+    });
+
+    if (!student || student.role !== 'STUDENT' || !student.learningModuleId) {
+      // étudiant sans module -> aucun cours
+      return [];
+    }
+
+    const courses = await this.prisma.course.findMany({
+      where: { learningModuleId: student.learningModuleId },
       include: {
-        teacher: { select: { id: true, email: true, fullName: true } },
         teachers: { select: { id: true, email: true, fullName: true } },
         learningModule: { include: { semester: true } },
-        students: { select: { id: true, email: true, fullName: true } },
+        // students: ❌ pas utile côté étudiant
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    return this.normalizeTeachersList(courses);
   }
 
-  async findOne(id: string) {
-    return this.prisma.course.findUniqueOrThrow({
-      where: { id },
+  async findOne(courseId: string, userId: string, role: Role) {
+    const course = await this.prisma.course.findUniqueOrThrow({
+      where: { id: courseId },
       include: {
-        teacher: { select: { id: true, email: true, fullName: true } },
         teachers: { select: { id: true, email: true, fullName: true } },
         learningModule: { include: { semester: true } },
-        students: { select: { id: true, email: true, fullName: true } },
+        // students: ❌ retirer (fuite d'info / legacy)
       },
     });
+
+    // ADMIN: OK
+    if (role === 'ADMIN') return course;
+
+    // TEACHER: OK si fait partie des teachers du cours
+    if (role === 'TEACHER') {
+      const isTeacher = course.teachers?.some((t) => t.id === userId);
+      if (!isTeacher) {
+        throw new ForbiddenException('Access denied');
+      }
+      return course;
+    }
+
+    // STUDENT: OK si module match
+    const student = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, learningModuleId: true },
+    });
+
+    const ok =
+      student?.role === 'STUDENT' &&
+      !!student.learningModuleId &&
+      !!course.learningModuleId &&
+      student.learningModuleId === course.learningModuleId;
+
+    if (!ok) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    return course;
   }
 
   async update(id: string, updateCourseDto: UpdateCourseDto, teacherId: string) {
     const course = await this.prisma.course.findUniqueOrThrow({
       where: { id },
-      select: { teacherId: true },
+      include: {
+        teachers: { select: { id: true } },
+      },
     });
 
-    if (course.teacherId !== teacherId) {
-      throw new ForbiddenException('You are not the teacher of this course');
+    // ✅ vérifier si le prof est dans teachers[] (nouveau modèle)
+    const isTeacherOfCourse = course.teachers.some(t => t.id === teacherId);
+    if (!isTeacherOfCourse) {
+      throw new ForbiddenException('You are not a teacher of this course');
     }
 
     return this.prisma.course.update({
@@ -109,7 +158,7 @@ export class CoursesService {
           : {}),
       },
       include: {
-        teacher: { select: { id: true, email: true, fullName: true } },
+        teachers: { select: { id: true, email: true, fullName: true } },
         students: { select: { id: true, email: true, fullName: true } },
       },
     });
@@ -118,11 +167,15 @@ export class CoursesService {
   async remove(id: string, teacherId: string) {
     const course = await this.prisma.course.findUniqueOrThrow({
       where: { id },
-      select: { teacherId: true },
+      include: {
+        teachers: { select: { id: true } },
+      },
     });
 
-    if (course.teacherId !== teacherId) {
-      throw new ForbiddenException('You are not the teacher of this course');
+    // ✅ vérifier si le prof est dans teachers[] (nouveau modèle)
+    const isTeacherOfCourse = course.teachers.some(t => t.id === teacherId);
+    if (!isTeacherOfCourse) {
+      throw new ForbiddenException('You are not a teacher of this course');
     }
 
     return this.prisma.course.delete({
@@ -139,7 +192,7 @@ export class CoursesService {
         },
       },
       include: {
-        teacher: { select: { id: true, email: true, fullName: true } },
+        teachers: { select: { id: true, email: true, fullName: true } },
         students: { select: { id: true, email: true, fullName: true } },
       },
     });
@@ -154,7 +207,7 @@ export class CoursesService {
         },
       },
       include: {
-        teacher: { select: { id: true, email: true, fullName: true } },
+        teachers: { select: { id: true, email: true, fullName: true } },
         students: { select: { id: true, email: true, fullName: true } },
       },
     });
@@ -200,7 +253,7 @@ export class CoursesService {
     if (!exists) throw new NotFoundException("Course not found");
 
     let teachersUpdate: any = undefined;
-    if (dto.teacherIds) {
+    if (dto.teacherIds !== undefined) {
       const teachers = await this.prisma.user.findMany({
         where: { id: { in: dto.teacherIds }, role: "TEACHER" },
         select: { id: true },
@@ -226,15 +279,12 @@ export class CoursesService {
       updateData.learningModuleId = dto.learningModuleId === null ? null : dto.learningModuleId;
     }
     
-    if (teachersUpdate) {
-      updateData.teachers = teachersUpdate;
-    }
 
     return this.prisma.course.update({
       where: { id },
       data: updateData,
       include: {
-        teachers: true,
+        teachers: { select: { id: true, email: true, fullName: true } },
         learningModule: { include: { semester: true } },
       },
     });
@@ -264,7 +314,7 @@ export class CoursesService {
         teachers: { set: teachers.map((t) => ({ id: t.id })) },
       },
       include: {
-        teachers: true,
+        teachers: { select: { id: true, email: true, fullName: true } },
         learningModule: { include: { semester: true } },
       },
     });
@@ -275,13 +325,49 @@ export class CoursesService {
       where: { id: courseId },
       data: {
         teachers: { disconnect: { id: teacherId } },
-        // Optionnel temporaire : si on retirait le legacy teacherId
-        // ...(teacherId === course.teacherId ? { teacherId: null } : {}),
       },
       include: {
-        teachers: true,
+        teachers: { select: { id: true, email: true, fullName: true } },
         learningModule: { include: { semester: true } },
       },
     });
+  }
+
+  async studentFindMySubjects(studentId: string) {
+    const student = await this.prisma.user.findUnique({
+      where: { id: studentId },
+      include: { learningModule: true },
+    });
+
+    if (!student?.learningModule?.id) return [];
+
+    const courses = await this.prisma.course.findMany({
+      where: { learningModuleId: student.learningModule.id },
+      orderBy: { createdAt: "desc" },
+      include: {
+        teachers: { select: { id: true, email: true, fullName: true } },
+        learningModule: {
+          include: { semester: true },
+        },
+      },
+    });
+
+    return this.normalizeTeachersList(courses);
+  }
+
+  async teacherFindAllSubjects(teacherId: string) {
+    const courses = await this.prisma.course.findMany({
+      where: {
+        teachers: { some: { id: teacherId } },
+      },
+      include: {
+        teachers: { select: { id: true, email: true, fullName: true } },
+        learningModule: { include: { semester: true } },
+        students: { select: { id: true, email: true, fullName: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return this.normalizeTeachersList(courses);
   }
 }

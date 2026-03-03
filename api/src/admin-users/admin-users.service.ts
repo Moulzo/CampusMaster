@@ -24,6 +24,21 @@ export class AdminUsersService {
     });
   }
 
+  async findAll(filters?: { role?: 'ADMIN' | 'TEACHER' | 'STUDENT' }) {
+    return this.prisma.user.findMany({
+      where: filters?.role ? { role: filters.role } : undefined,
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: { fullName: 'asc' },
+    });
+  }
+
   async get(id: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },
@@ -34,10 +49,25 @@ export class AdminUsersService {
         role: true,
         createdAt: true,
         updatedAt: true,
+
+        // ✅ important pour l'admin UI
+        learningModuleId: true,
+        learningModule: {
+          select: {
+            id: true,
+            name: true,
+            semester: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
       },
     });
 
-    if (!user) throw new NotFoundException('User not found');
+    if (!user) throw new NotFoundException("User not found");
     return user;
   }
 

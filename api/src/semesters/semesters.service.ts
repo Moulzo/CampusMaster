@@ -25,7 +25,7 @@ export class SemestersService {
           include: {
             subjects: {
               include: {
-                teacher: {
+                teachers: {
                   select: {
                     id: true,
                     fullName: true,
@@ -57,7 +57,7 @@ export class SemestersService {
           include: {
             subjects: {
               include: {
-                teacher: {
+                teachers: {
                   select: {
                     id: true,
                     fullName: true,

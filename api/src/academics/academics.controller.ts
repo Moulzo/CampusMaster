@@ -23,7 +23,7 @@ export class AcademicsController {
             subjects: {
               orderBy: { createdAt: 'desc' },
               include: {
-                teacher: { select: { id: true, fullName: true, email: true } },
+                teachers: { select: { id: true, fullName: true, email: true } },
               },
             },
           },

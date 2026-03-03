@@ -29,9 +29,8 @@ export class AdminSubjectsController {
       filtered = filtered.filter(course => course.learningModuleId === moduleId);
     }
     if (teacherId) {
-      filtered = filtered.filter(course => 
-        course.teacherId === teacherId || 
-        course.teachers?.some(teacher => teacher.id === teacherId)
+      filtered = filtered.filter(course =>
+        course.teachers?.some(t => t.id === teacherId)
       );
     }
     
@@ -41,7 +40,16 @@ export class AdminSubjectsController {
   @Get(':id')
   @ApiOperation({ summary: "Get subject by ID" })
   async findOne(@Param('id') id: string) {
-    return this.coursesService.findOne(id);
+    // ADMIN a tous les droits, on passe userId vide et role ADMIN
+    return this.coursesService.findOne(id, '', 'ADMIN');
+  }
+
+  @Get(':id/teachers')
+  @ApiOperation({ summary: "Get subject teachers" })
+  async findTeachers(@Param('id') id: string) {
+    // ADMIN a tous les droits, on passe userId vide et role ADMIN
+    const course = await this.coursesService.findOne(id, '', 'ADMIN');
+    return course.teachers || [];
   }
 
   @Post()

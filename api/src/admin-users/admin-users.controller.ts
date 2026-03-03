@@ -9,8 +9,9 @@ import {
   Request,
   UseGuards,
   BadRequestException,
+  Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags, ApiQuery } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
@@ -27,9 +28,10 @@ export class AdminUsersController {
   constructor(private adminUsers: AdminUsersService) {}
 
   @Get()
-  list() {
-    return this.adminUsers.list();
-  }
+@ApiQuery({ name: 'role', required: false, enum: ['ADMIN', 'TEACHER', 'STUDENT'] })
+async findAll(@Query('role') role?: 'ADMIN' | 'TEACHER' | 'STUDENT') {
+  return this.adminUsers.findAll({ role });
+}
 
   @Get(':id')
   get(@Param('id') id: string) {

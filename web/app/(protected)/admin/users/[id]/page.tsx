@@ -3,6 +3,12 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { adminGetUser, adminUpdateUser, type AdminUser } from "@/lib/admin-users";
+import {
+  getLearningModules,
+  setStudentModule,
+  unsetStudentModule,
+  type LearningModule,
+} from "@/lib/admin-academics";
 
 export default function AdminUserDetailPage() {
   const router = useRouter();
@@ -16,6 +22,8 @@ export default function AdminUserDetailPage() {
 
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<AdminUser["role"]>("STUDENT");
+  const [modules, setModules] = useState<LearningModule[]>([]);
+  const [learningModuleId, setLearningModuleId] = useState<string>(""); // "" => aucun module
 
   useEffect(() => {
     if (!id) return;
@@ -28,6 +36,10 @@ export default function AdminUserDetailPage() {
         setUser(u);
         setFullName(u.fullName ?? "");
         setRole(u.role);
+        setLearningModuleId(u.learningModuleId ?? "");
+
+        const mods = await getLearningModules();
+        setModules(mods);
       } catch (e: any) {
         setError(e?.message ?? "Impossible de charger l'utilisateur.");
       } finally {
@@ -40,8 +52,23 @@ export default function AdminUserDetailPage() {
     if (!user) return;
     setSaving(true);
     try {
+      // 1) update user (nom + role)
       const updated = await adminUpdateUser(user.id, { fullName, role });
       setUser(updated);
+
+      // 2) gérer l'affectation module UNIQUEMENT pour STUDENT
+      if (role === "STUDENT") {
+        if (learningModuleId) {
+          await setStudentModule(user.id, learningModuleId);
+        } else {
+          await unsetStudentModule(user.id);
+        }
+      } else {
+        // si on passe à TEACHER/ADMIN, on peut nettoyer l'affectation module
+        // (safe, vu que l'endpoint existe déjà)
+        await unsetStudentModule(user.id);
+      }
+
       alert("Utilisateur mis a jour ✅");
     } catch (e: any) {
       alert(e?.message ?? "Mise a jour impossible.");
@@ -89,6 +116,27 @@ export default function AdminUserDetailPage() {
           <option value="ADMIN">ADMIN</option>
         </select>
       </div>
+
+      {role === "STUDENT" && (
+        <div className="space-y-2">
+          <label className="block text-sm">Module</label>
+          <select
+            className="w-full border rounded-md p-2"
+            value={learningModuleId}
+            onChange={(e) => setLearningModuleId(e.target.value)}
+          >
+            <option value="">Aucun module</option>
+            {modules.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.semester ? `${m.semester.name} / ` : ""}{m.name}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-zinc-500">
+            Affecte l'étudiant à un module (ou "Aucun module" pour désaffecter).
+          </p>
+        </div>
+      )}
 
       <button
         onClick={onSave}

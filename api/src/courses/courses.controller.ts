@@ -9,8 +9,9 @@ import {
   UseGuards,
   Request,
   Header,
+  GoneException,
 } from '@nestjs/common';
-import { ApiBearerAuth } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { CoursesService } from './courses.service';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
@@ -49,7 +50,9 @@ export class CoursesController {
   @Header('Cache-Control', 'no-store')
   @Header('Pragma', 'no-cache')
   findOne(@Param('id') id: string, @Request() req: any) {
-    return this.coursesService.findOne(id);
+    const userId = getUserId(req);
+    const role = req.user.role;
+    return this.coursesService.findOne(id, userId, role);
   }
 
   @Put(':id')
@@ -73,20 +76,32 @@ export class CoursesController {
   }
 
   @Post(':id/enroll')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('STUDENT')
+  @ApiOperation({
+    summary: '[DEPRECATED] Enroll student to course (disabled)',
+    description:
+      "Inscription manuelle désactivée : l'accès aux matières dépend du module de l'étudiant.",
+    deprecated: true,
+  })
   @Header('Cache-Control', 'no-store')
   @Header('Pragma', 'no-cache')
   enrollStudent(@Param('id') courseId: string, @Request() req: any) {
-    const studentId = getUserId(req);
-    return this.coursesService.enrollStudent(courseId, studentId);
+    throw new GoneException("Inscription manuelle désactivée: l'inscription se fait via l'affectation au module.");
   }
 
   @Post(':id/unenroll')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('STUDENT')
+  @ApiOperation({
+    summary: '[DEPRECATED] Unenroll student from course (disabled)',
+    description:
+      "Désinscription manuelle désactivée : l'accès aux matières dépend du module de l'étudiant.",
+    deprecated: true,
+  })
   @Header('Cache-Control', 'no-store')
   @Header('Pragma', 'no-cache')
   unenrollStudent(@Param('id') courseId: string, @Request() req: any) {
-    const studentId = getUserId(req);
-    return this.coursesService.unenrollStudent(courseId, studentId);
+    throw new GoneException("Désinscription manuelle désactivée: l'accès dépend du module.");
   }
 }

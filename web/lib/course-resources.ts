@@ -1,6 +1,8 @@
 import { apiFetch } from "./auth";
 import { apiFetchJson } from "./auth";
 
+export type UserLite = { id: string; fullName: string | null; email: string };
+
 export type CourseResource = {
   id: string;
   title: string;
@@ -9,7 +11,9 @@ export type CourseResource = {
   mimeType: string;
   size: number;
   createdAt: string;
-  teacher?: { id: string; fullName: string; email: string };
+
+  // ✅ API renvoie "uploadedBy"
+  uploadedBy: UserLite | null;
 };
 
 // Helper functions

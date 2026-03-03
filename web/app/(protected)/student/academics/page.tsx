@@ -8,7 +8,7 @@ interface Subject {
   id: string;
   title: string;
   description?: string | null;
-  teacher: { id: string; fullName: string; email: string };
+  teachers: { id: string; fullName: string; email: string }[];
 }
 
 interface Module {
@@ -124,9 +124,18 @@ export default function StudentAcademicsPage() {
                                   {subject.description}
                                 </p>
                               )}
-                              <p className="text-xs text-slate-500 mt-2">
-                                Prof: {subject.teacher.fullName}
-                              </p>
+                              {(() => {
+                                const profs =
+                                  (subject.teachers ?? [])
+                                    .map((t) => (t.fullName && t.fullName.trim() ? t.fullName : t.email))
+                                    .join(", ") || "—";
+                                
+                                return (
+                                  <p className="text-xs text-slate-500 mt-2">
+                                    Prof: {profs}
+                                  </p>
+                                );
+                              })()}
                             </div>
                             <div className="flex gap-2 ml-4">
                               <Link

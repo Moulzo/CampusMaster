@@ -21,6 +21,7 @@ import * as fs from "fs";
 import * as path from "path";
 import type { Response } from "express";
 import type { Express } from "express";
+import { ApiTags, ApiBearerAuth } from "@nestjs/swagger";
 
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { RolesGuard } from "../auth/roles.guard";
@@ -38,6 +39,8 @@ function safeFileName(originalName: string) {
   return base;
 }
 
+@ApiTags("course-resources")
+@ApiBearerAuth("access-token")
 @Controller("courses")
 export class CourseResourcesController {
   constructor(private readonly service: CourseResourcesService) {}
@@ -133,12 +136,13 @@ export class CourseResourcesController {
     });
   }
 
-  // DELETE (teacher owner only OR admin if you want)
+  // DELETE (teacher owner only OR admin)
   @Delete("resources/:id")
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles("TEACHER")
+  @Roles("TEACHER", "ADMIN")
   async remove(@Param("id") id: string, @Request() req: any) {
-    const teacherId = req.user.id ?? req.user.sub;
-    return this.service.deleteResource(id, teacherId);
+    const userId = req.user.id ?? req.user.sub;
+    const role = req.user.role;
+    return this.service.deleteResource(id, userId, role);
   }
 }

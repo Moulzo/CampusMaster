@@ -9,6 +9,14 @@ export type AdminUser = {
   role: Role;
   createdAt: string;
   updatedAt: string;
+
+  // ✅ nouveau (optionnel)
+  learningModuleId?: string | null;
+  learningModule?: {
+    id: string;
+    name: string;
+    semester?: { id: string; name: string } | null;
+  } | null;
 };
 
 export type UpdateAdminUserDto = Partial<Pick<AdminUser, "fullName" | "role" | "email" | "createdAt" | "updatedAt">>;
@@ -20,9 +28,12 @@ export type CreateAdminUserDto = {
   password: string;
 };
 
-export function adminListUsers() {
-  // Swagger: GET /api/admin/users
-  return apiFetchJson<AdminUser[]>("/admin/users");
+export function adminListUsers(role?: Role) {
+  const params = new URLSearchParams();
+  if (role) params.set("role", role);
+
+  const url = `/admin/users${params.toString() ? `?${params.toString()}` : ""}`;
+  return apiFetchJson<AdminUser[]>(url);
 }
 
 export function adminGetUser(id: string) {

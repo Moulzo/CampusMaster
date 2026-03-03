@@ -9,31 +9,54 @@ export class SubmissionsService {
     private notificationsService: NotificationsService,
   ) {}
 
+  private async assertStudentCanAccessCourse(studentId: string, courseId: string): Promise<boolean> {
+    const [student, course] = await Promise.all([
+      this.prisma.user.findUnique({ 
+        where: { id: studentId }, 
+        select: { learningModuleId: true } 
+      }),
+      this.prisma.course.findUnique({ 
+        where: { id: courseId }, 
+        select: { learningModuleId: true } 
+      }),
+    ]);
+
+    if (!student || !student.learningModuleId) return false;
+    if (!course || !course.learningModuleId) return false;
+
+    return student.learningModuleId === course.learningModuleId;
+  }
+
   async create(assignmentId: string, studentId: string, fileUrl?: string) {
-    // Vérifier que l'étudiant est inscrit au cours du devoir
-    const assignment = await this.prisma.assignment.findUnique({
-      where: { id: assignmentId },
-      include: {
-        course: {
-          select: {
-            id: true,
-            students: {
-              select: { id: true },
-            },
-          },
-        },
-      },
-    });
+  const assignment = await this.prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    select: {
+      id: true,
+      courseId: true,
+      dueDate: true,
+      course: { select: { learningModuleId: true } },
+    },
+  });
 
-    if (!assignment) {
-      throw new NotFoundException('Assignment not found');
-    }
+  if (!assignment) throw new NotFoundException("Assignment not found");
 
-    // Vérifier que l'étudiant est inscrit au cours
-    const isEnrolled = assignment.course.students.some(student => student.id === studentId);
-    if (!isEnrolled) {
-      throw new ForbiddenException('You are not enrolled in this course');
-    }
+  const student = await this.prisma.user.findUnique({
+    where: { id: studentId },
+    select: { role: true, learningModuleId: true },
+  });
+
+  if (!student || student.role !== "STUDENT") {
+    throw new ForbiddenException("User is not a student");
+  }
+
+  const ok =
+    !!student.learningModuleId &&
+    !!assignment.course.learningModuleId &&
+    student.learningModuleId === assignment.course.learningModuleId;
+
+  if (!ok) {
+    throw new ForbiddenException("You are not allowed to submit for this course (module mismatch)");
+  }
 
     const now = new Date();
     if (now.getTime() > new Date(assignment.dueDate).getTime()) {
@@ -134,7 +157,7 @@ export class SubmissionsService {
           select: {
             id: true,
             title: true,
-            teacherId: true,
+            teachers: { select: { id: true } },
           },
         },
         submissions: {
@@ -160,23 +183,32 @@ export class SubmissionsService {
       return assignment.submissions;
     }
 
-    if (role === 'TEACHER' && assignment.course.teacherId === userId) {
-      return assignment.submissions;
+    if (role === 'TEACHER') {
+      const isTeacher = assignment.course.teachers.some(t => t.id === userId);
+      if (isTeacher) return assignment.submissions;
     }
 
     if (role === 'STUDENT') {
-      const isEnrolled = await this.prisma.course.findUnique({
-        where: {
-          id: assignment.course.id,
-          students: {
-            some: { id: userId },
-          },
-        },
-        select: { id: true },
-      });
+      // ✅ autorisé uniquement si le devoir est dans un cours du module de l'étudiant
+      const [student, course] = await Promise.all([
+        this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { learningModuleId: true, role: true },
+        }),
+        this.prisma.course.findUnique({
+          where: { id: assignment.course.id },
+          select: { learningModuleId: true },
+        }),
+      ]);
 
-      if (isEnrolled) {
-        return assignment.submissions.filter((submission) => submission.studentId === userId);
+      const ok =
+        student?.role === "STUDENT" &&
+        !!student.learningModuleId &&
+        !!course?.learningModuleId &&
+        student.learningModuleId === course.learningModuleId;
+
+      if (ok) {
+        return assignment.submissions.filter((s) => s.studentId === userId);
       }
     }
 
@@ -197,7 +229,7 @@ export class SubmissionsService {
               select: {
                 id: true,
                 title: true,
-                teacherId: true,
+                teachers: { select: { id: true } },
               },
             },
           },
@@ -221,12 +253,30 @@ export class SubmissionsService {
       return submission;
     }
 
-    if (role === 'TEACHER' && submission.assignment.course.teacherId === userId) {
-      return submission;
+    if (role === 'TEACHER') {
+      const isTeacher = submission.assignment.course.teachers.some(t => t.id === userId);
+      if (isTeacher) return submission;
     }
 
     if (role === 'STUDENT' && submission.studentId === userId) {
-      return submission;
+      const [student, course] = await Promise.all([
+        this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { learningModuleId: true, role: true },
+        }),
+        this.prisma.course.findUnique({
+          where: { id: submission.assignment.course.id },
+          select: { learningModuleId: true },
+        }),
+      ]);
+
+      const ok =
+        student?.role === "STUDENT" &&
+        !!student.learningModuleId &&
+        !!course?.learningModuleId &&
+        student.learningModuleId === course.learningModuleId;
+
+      if (ok) return submission;
     }
 
     throw new ForbiddenException('Access denied');
@@ -239,7 +289,7 @@ export class SubmissionsService {
         assignment: {
           include: {
             course: {
-              select: { teacherId: true },
+              select: { teachers: { select: { id: true } } },
             },
           },
         },
@@ -251,7 +301,8 @@ export class SubmissionsService {
     }
 
     // Seul le teacher du cours peut noter
-    if (submission.assignment.course.teacherId !== teacherId) {
+    const isTeacher = submission.assignment.course.teachers.some(t => t.id === teacherId);
+    if (!isTeacher) {
       throw new ForbiddenException('You are not the teacher of this course');
     }
 

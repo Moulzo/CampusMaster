@@ -10,17 +10,43 @@ type Role = "STUDENT" | "TEACHER" | "ADMIN" | string;
 export class CourseResourcesService {
   constructor(private prisma: PrismaService) {}
 
+  private async studentCanAccessCourseByModule(courseId: string, studentId: string) {
+    const [student, course] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: studentId },
+        select: { learningModuleId: true, role: true },
+      }),
+      this.prisma.course.findUnique({
+        where: { id: courseId },
+        select: { learningModuleId: true },
+      }),
+    ]);
+
+    if (!student || student.role !== "STUDENT") return false;
+    if (!student.learningModuleId) return false;
+    if (!course || !course.learningModuleId) return false;
+
+    return student.learningModuleId === course.learningModuleId;
+  }
+
   private async assertCanViewCourse(courseId: string, userId: string, role: Role) {
     if (role === "ADMIN") return;
 
     const course = await this.prisma.course.findUnique({
       where: { id: courseId },
-      select: { teacherId: true, students: { select: { id: true } } },
+      select: {
+        teachers: { select: { id: true } },
+        learningModuleId: true, // ✅
+      },
     });
     if (!course) throw new NotFoundException("Course not found");
 
-    if (role === "TEACHER" && course.teacherId === userId) return;
-    if (role === "STUDENT" && course.students.some((s) => s.id === userId)) return;
+    if (role === "TEACHER" && course.teachers.some((t) => t.id === userId)) return;
+
+    if (role === "STUDENT") {
+      const ok = await this.studentCanAccessCourseByModule(courseId, userId);
+      if (ok) return;
+    }
 
     throw new ForbiddenException("Accès interdit");
   }
@@ -28,20 +54,24 @@ export class CourseResourcesService {
   async listCourseResources(courseId: string, userId: string, role: Role) {
     await this.assertCanViewCourse(courseId, userId, role);
 
-    return this.prisma.courseResource.findMany({
+    const resources = await this.prisma.courseResource.findMany({
       where: { courseId },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        filename: true,
-        mimeType: true,
-        size: true,
-        createdAt: true,
-        teacher: { select: { id: true, fullName: true, email: true } },
+      include: {
+        teacher: { select: { id: true, fullName: true, email: true } }, // uploader en DB
       },
       orderBy: { createdAt: "desc" },
     });
+
+    return resources.map((r) => ({
+      id: r.id,
+      title: r.title,
+      description: r.description,
+      filename: r.filename,
+      mimeType: r.mimeType,
+      size: r.size,
+      createdAt: r.createdAt,
+      uploadedBy: r.teacher,
+    }));
   }
 
   async createResource(
@@ -53,10 +83,12 @@ export class CourseResourcesService {
     // seul le prof "owner" de la matière peut upload (avec ton modèle actuel)
     const course = await this.prisma.course.findUnique({
       where: { id: courseId },
-      select: { teacherId: true },
+      select: { teachers: { select: { id: true } } },
     });
     if (!course) throw new NotFoundException("Course not found");
-    if (course.teacherId !== teacherId) throw new ForbiddenException("Not your course");
+
+    const isTeacher = course.teachers.some(t => t.id === teacherId);
+    if (!isTeacher) throw new ForbiddenException("Not your course");
 
     const relPath = path.join("courses", courseId, file.filename).replaceAll("\\", "/");
 
@@ -73,16 +105,19 @@ export class CourseResourcesService {
         courseId,
         teacherId,
       },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        filename: true,
-        mimeType: true,
-        size: true,
-        createdAt: true,
+      include: {
+        teacher: { select: { id: true, fullName: true, email: true } },
       },
-    });
+    }).then((r) => ({
+      id: r.id,
+      title: r.title,
+      description: r.description,
+      filename: r.filename,
+      mimeType: r.mimeType,
+      size: r.size,
+      createdAt: r.createdAt,
+      uploadedBy: r.teacher,
+    }));
   }
 
   async getResourceForDownload(id: string, userId: string, role: Role) {
@@ -94,29 +129,40 @@ export class CourseResourcesService {
         mimeType: true,
         path: true,
         courseId: true,
-        course: { select: { teacherId: true, students: { select: { id: true } } } },
+        course: {
+          select: {
+            teachers: { select: { id: true } },
+            learningModuleId: true, // ✅
+          },
+        },
       },
     });
     if (!resource) throw new NotFoundException("Resource not found");
 
-    // check accès au cours
     if (role !== "ADMIN") {
-      const course = resource.course;
-      if (role === "TEACHER" && course.teacherId !== userId) throw new ForbiddenException();
-      if (role === "STUDENT" && !course.students.some((s) => s.id === userId))
+      if (role === "TEACHER" && !resource.course.teachers.some((t) => t.id === userId)) {
         throw new ForbiddenException();
+      }
+
+      if (role === "STUDENT") {
+        const ok = await this.studentCanAccessCourseByModule(resource.courseId, userId);
+        if (!ok) throw new ForbiddenException();
+      }
     }
 
     return resource;
   }
 
-  async deleteResource(id: string, teacherId: string) {
+  async deleteResource(id: string, userId: string, role: Role) {
     const resource = await this.prisma.courseResource.findUnique({
       where: { id },
       select: { teacherId: true, path: true },
     });
     if (!resource) throw new NotFoundException("Resource not found");
-    if (resource.teacherId !== teacherId) throw new ForbiddenException("Not your resource");
+
+    if (role !== "ADMIN" && resource.teacherId !== userId) {
+      throw new ForbiddenException("Not your resource");
+    }
 
     // delete DB first or file first: je préfère DB first puis best-effort file
     await this.prisma.courseResource.delete({ where: { id } });

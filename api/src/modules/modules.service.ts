@@ -12,7 +12,7 @@ export class LearningModulesService {
         semester: true,
         subjects: {
           include: {
-            teacher: {
+            teachers: {
               select: {
                 id: true,
                 fullName: true,
@@ -38,7 +38,7 @@ export class LearningModulesService {
         semester: true,
         subjects: {
           include: {
-            teacher: {
+            teachers: {
               select: {
                 id: true,
                 fullName: true,
@@ -67,7 +67,7 @@ export class LearningModulesService {
         semester: true,
         subjects: {
           include: {
-            teacher: {
+            teachers: {
               select: {
                 id: true,
                 fullName: true,
@@ -94,7 +94,7 @@ export class LearningModulesService {
         semester: true,
         subjects: {
           include: {
-            teacher: {
+            teachers: {
               select: {
                 id: true,
                 fullName: true,

@@ -3,7 +3,7 @@
 import { RequireRole } from "@/lib/require-role";
 import { useAuth } from "@/lib/auth-context";
 import { logout } from "@/lib/auth";
-import { getCourses } from "@/lib/courses";
+import { getTeacherSubjects } from "@/lib/teacher-academics";
 import { getAssignments } from "@/lib/assignments";
 import { useEffect, useMemo, useState } from "react";
 
@@ -12,7 +12,7 @@ export default function TeacherPage() {
 
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string>("");
-  const [coursesCount, setCoursesCount] = useState(0);
+  const [subjectsCount, setSubjectsCount] = useState(0);
   const [studentsCount, setStudentsCount] = useState(0);
   const [assignmentsCount, setAssignmentsCount] = useState(0);
 
@@ -24,9 +24,10 @@ export default function TeacherPage() {
       setStatsLoading(true);
       setStatsError("");
       try {
-        const [courses, assignments] = await Promise.all([getCourses(), getAssignments()]);
-        setCoursesCount(courses.length);
-        setStudentsCount(courses.reduce((acc, c) => acc + (c.students?.length ?? 0), 0));
+        const [subjects, assignments] = await Promise.all([getTeacherSubjects(), getAssignments()]);
+        setSubjectsCount(subjects.length);
+        // Note: subjects ne contient pas les étudiants, on utilise 0 pour l'instant
+        setStudentsCount(0);
         setAssignmentsCount(assignments.length);
       } catch (e: any) {
         setStatsError(e?.message ?? "Erreur");
@@ -36,7 +37,7 @@ export default function TeacherPage() {
     })();
   }, [loading, user?.id]);
 
-  const coursesLabel = useMemo(() => (statsLoading ? "…" : String(coursesCount)), [statsLoading, coursesCount]);
+  const subjectsLabel = useMemo(() => (statsLoading ? "…" : String(subjectsCount)), [statsLoading, subjectsCount]);
   const studentsLabel = useMemo(() => (statsLoading ? "…" : String(studentsCount)), [statsLoading, studentsCount]);
   const assignmentsLabel = useMemo(() => (statsLoading ? "…" : String(assignmentsCount)), [statsLoading, assignmentsCount]);
 
@@ -98,8 +99,8 @@ export default function TeacherPage() {
                   <div className="bg-white rounded-lg shadow-md p-6 border border-slate-200">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-slate-500">Mes Cours</p>
-                        <p className="text-3xl font-bold text-slate-900 mt-1">{coursesLabel}</p>
+                        <p className="text-sm text-slate-500">Mes Matières</p>
+                        <p className="text-3xl font-bold text-slate-900 mt-1">{subjectsLabel}</p>
                       </div>
                       <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                         <span className="text-xl">📚</span>
@@ -134,8 +135,8 @@ export default function TeacherPage() {
                 <div className="bg-white rounded-lg shadow-md p-6 border border-slate-200">
                   <h3 className="text-lg font-bold text-slate-900 mb-4">Actions Rapides</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <button onClick={() => window.location.href = '/teacher/courses'} className="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition flex items-center justify-center gap-2">
-                      <span>➕</span> Gérer Mes Cours
+                    <button onClick={() => window.location.href = '/teacher/subjects'} className="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition flex items-center justify-center gap-2">
+                      <span>📚</span> Mes Matières
                     </button>
                     <button className="px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition flex items-center justify-center gap-2">
                       <span>📋</span> Créer un Devoir

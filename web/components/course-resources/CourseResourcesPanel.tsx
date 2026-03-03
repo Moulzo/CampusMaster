@@ -3,6 +3,13 @@
 import { useEffect, useState } from "react";
 import { listCourseResources, uploadCourseResource, downloadCourseResource, deleteCourseResource, type CourseResource, formatFileSize, formatDate, getFileIcon } from "@/lib/course-resources";
 
+// Helper pour afficher l'uploader
+function uploaderLabel(r: { uploadedBy: { fullName: string | null; email: string } | null }) {
+  const u = r.uploadedBy;
+  if (!u) return "—";
+  return u.fullName && u.fullName.trim() ? u.fullName : u.email;
+}
+
 export function CourseResourcesPanel({
   courseId,
   readOnly = false,
@@ -170,6 +177,8 @@ export function CourseResourcesPanel({
                     <span>Taille: {formatFileSize(r.size)}</span>
                     <span>•</span>
                     <span>Ajouté: {formatDate(r.createdAt)}</span>
+                    <span>•</span>
+                    <span>Par: {uploaderLabel(r)}</span>
                   </div>
                 </div>
 

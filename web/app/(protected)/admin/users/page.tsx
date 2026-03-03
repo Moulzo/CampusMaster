@@ -9,12 +9,13 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [roleFilter, setRoleFilter] = useState<"" | AdminUser["role"]>("");
 
   async function refresh() {
     setError(null);
     setLoading(true);
     try {
-      const data = await adminListUsers();
+      const data = await adminListUsers(roleFilter || undefined);
       setUsers(data);
     } catch (e: any) {
       setError(e?.message ?? "Erreur lors du chargement des utilisateurs.");
@@ -25,7 +26,7 @@ export default function AdminUsersPage() {
 
   useEffect(() => {
     refresh();
-  }, []);
+  }, [roleFilter]);
 
   async function onDelete(id: string) {
     const ok = confirm("Supprimer cet utilisateur ?");
@@ -73,6 +74,26 @@ export default function AdminUsersPage() {
       <div className="text-sm text-zinc-600">
         Total: {users.length} — ADMIN: {stats.ADMIN ?? 0} — TEACHER: {stats.TEACHER ?? 0} — STUDENT:{" "}
         {stats.STUDENT ?? 0}
+      </div>
+
+      <div className="flex items-center gap-3">
+        <label className="text-sm text-zinc-600">Filtrer par rôle</label>
+        <select
+          className="border rounded-md p-2 text-sm"
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value as any)}
+        >
+          <option value="">Tous</option>
+          <option value="ADMIN">ADMIN</option>
+          <option value="TEACHER">TEACHER</option>
+          <option value="STUDENT">STUDENT</option>
+        </select>
+
+        {roleFilter && (
+          <button className="text-sm underline" onClick={() => setRoleFilter("")}>
+            Réinitialiser
+          </button>
+        )}
       </div>
 
       {loading && <p>Chargement…</p>}

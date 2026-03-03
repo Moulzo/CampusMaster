@@ -10,7 +10,7 @@ import {
   Request,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AssignmentsService } from './assignments.service';
 import { CreateAssignmentDto } from './dto/create-assignment.dto';
 import { UpdateAssignmentDto } from './dto/update-assignment.dto';
@@ -18,6 +18,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 
+@ApiTags('assignments')
 @ApiBearerAuth('access-token')
 @Controller('assignments')
 export class AssignmentsController {
@@ -33,6 +34,7 @@ export class AssignmentsController {
 
   @Get()
   @UseGuards(JwtAuthGuard)
+  @ApiQuery({ name: 'courseId', required: false, type: String })
   findAll(@Request() req: any, @Query('courseId') courseId?: string) {
     const userId = req.user.id ?? req.user.sub;
     const role = req.user.role;

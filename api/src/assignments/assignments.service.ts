@@ -14,19 +14,36 @@ export class AssignmentsService {
     private notificationsService: NotificationsService,
   ) {}
 
+  private async assertStudentCanAccessCourse(studentId: string, courseId: string): Promise<boolean> {
+    const [student, course] = await Promise.all([
+      this.prisma.user.findUnique({ 
+        where: { id: studentId }, 
+        select: { learningModuleId: true } 
+      }),
+      this.prisma.course.findUnique({ 
+        where: { id: courseId }, 
+        select: { learningModuleId: true } 
+      }),
+    ]);
+
+    if (!student || !student.learningModuleId) return false;
+    if (!course || !course.learningModuleId) return false;
+
+    return student.learningModuleId === course.learningModuleId;
+  }
+
   async create(createAssignmentDto: CreateAssignmentDto, teacherId: string) {
     // Vérifier que le teacher est bien le teacher du cours
     const course = await this.prisma.course.findUnique({
       where: { id: createAssignmentDto.courseId },
-      select: { teacherId: true },
+      include: { teachers: { select: { id: true } } },
     });
 
-    if (!course) {
-      throw new NotFoundException('Course not found');
-    }
+    if (!course) throw new NotFoundException('Course not found');
 
-    if (course.teacherId !== teacherId) {
-      throw new ForbiddenException('You are not the teacher of this course');
+    const isTeacher = course.teachers.some(t => t.id === teacherId);
+    if (!isTeacher) {
+      throw new ForbiddenException('You are not teacher of this course');
     }
 
     const maxScore = createAssignmentDto.maxScore ?? 20;
@@ -101,12 +118,10 @@ export class AssignmentsService {
     if (courseId) {
       const course = await this.prisma.course.findUnique({
         where: { id: courseId },
-        select: { teacherId: true },
+        include: { teachers: { select: { id: true } } },
       });
 
-      if (!course) {
-        throw new NotFoundException('Course not found');
-      }
+      if (!course) throw new NotFoundException('Course not found');
 
       // ADMIN: tous les devoirs du cours
       if (role === 'ADMIN') {
@@ -114,23 +129,19 @@ export class AssignmentsService {
       }
 
       // TEACHER: seulement si c'est son cours
-      if (role === 'TEACHER' && course.teacherId === userId) {
-        return this.getAssignmentsWithRelations({ courseId });
+      if (role === 'TEACHER') {
+        const isTeacher = course.teachers.some(t => t.id === userId);
+        if (isTeacher) {
+          return this.getAssignmentsWithRelations({ courseId });
+        }
       }
 
-      // STUDENT: seulement si inscrit au cours
-      const enrollment = await this.prisma.course.findUnique({
-        where: {
-          id: courseId,
-          students: {
-            some: { id: userId },
-          },
-        },
-        select: { id: true },
-      });
-
-      if (enrollment) {
-        return this.getAssignmentsWithRelations({ courseId });
+      // STUDENT: seulement si inscrit au cours (via module)
+      if (role === 'STUDENT') {
+        const canAccess = await this.assertStudentCanAccessCourse(userId, courseId);
+        if (canAccess) {
+          return this.getAssignmentsWithRelations({ courseId });
+        }
       }
     }
 
@@ -140,26 +151,64 @@ export class AssignmentsService {
       return this.getAssignmentsWithRelations({});
     }
 
-    // TEACHER: ses devoirs créés
+    // TEACHER: devoirs des cours où il enseigne (multi-teacher support)
     if (role === 'TEACHER') {
-      return this.getAssignmentsWithRelations({ teacherId: userId });
+      return this.getAssignmentsWithRelations({
+        courseTeacherId: userId,
+      });
     }
 
     // STUDENT: devoirs des cours où il est inscrit
     return this.getAssignmentsWithRelations({
-      course: {
-        students: {
-          some: { id: userId },
-        },
-      },
+      studentId: userId,
     });
   }
 
-  private async getAssignmentsWithRelations(where: Prisma.AssignmentWhereInput = {}) {
+  private async getAssignmentsWithRelations(filter: { 
+    courseId?: string;
+    studentId?: string;
+    teacherId?: string; // legacy: auteur du devoir
+    courseTeacherId?: string; // ✅ nouveau: enseigne le cours
+  } = {}) {
+    const where: any = {};
+
+    if (filter.courseId) where.courseId = filter.courseId;
+    if (filter.teacherId) where.teacherId = filter.teacherId; // legacy si besoin
+
+    // ✅ Pour éviter l'écrasement, on utilise AND: [] si plusieurs conditions sur course
+    const courseConditions: any[] = [];
+
+    // ✅ clé de la migration multi-teacher
+    if (filter.courseTeacherId) {
+      courseConditions.push({
+        teachers: { some: { id: filter.courseTeacherId } },
+      });
+    }
+
+    // ✅ filtre pour les étudiants
+    if (filter.studentId) {
+      courseConditions.push({
+        students: { some: { id: filter.studentId } },
+      });
+    }
+
+    // Si on a des conditions sur course, on les combine avec AND
+    if (courseConditions.length > 0) {
+      where.course = {
+        AND: courseConditions,
+      };
+    }
+
     return this.prisma.assignment.findMany({
       where,
       include: {
-        course: { select: { id: true, title: true } },
+        course: { 
+          select: { 
+            id: true, 
+            title: true,
+            teachers: { select: { id: true, fullName: true, email: true } },
+          } 
+        },
         submissions: {
           include: {
             student: { select: { id: true, email: true, fullName: true } },
@@ -178,7 +227,7 @@ export class AssignmentsService {
           select: {
             id: true,
             title: true,
-            teacherId: true,
+            teachers: { select: { id: true } },
           },
         },
         submissions: {
@@ -204,23 +253,15 @@ export class AssignmentsService {
       return assignment;
     }
 
-    if (role === 'TEACHER' && assignment.course.teacherId === userId) {
-      return assignment;
+    if (role === 'TEACHER') {
+      const isTeacher = assignment.course.teachers.some(t => t.id === userId);
+      if (isTeacher) return assignment;
     }
 
     if (role === 'STUDENT') {
-      // Vérifier que l'étudiant est inscrit au cours
-      const isEnrolled = await this.prisma.course.findUnique({
-        where: {
-          id: assignment.courseId,
-          students: {
-            some: { id: userId },
-          },
-        },
-        select: { id: true },
-      });
-
-      if (isEnrolled) {
+      // Vérifier que l'étudiant a accès au cours via module
+      const canAccess = await this.assertStudentCanAccessCourse(userId, assignment.courseId);
+      if (canAccess) {
         return assignment;
       }
     }
@@ -233,7 +274,7 @@ export class AssignmentsService {
       where: { id },
       include: {
         course: {
-          select: { teacherId: true },
+          select: { teachers: { select: { id: true } } },
         },
       },
     });
@@ -242,7 +283,8 @@ export class AssignmentsService {
       throw new NotFoundException('Assignment not found');
     }
 
-    if (assignment.course.teacherId !== teacherId) {
+    const isTeacher = assignment.course.teachers.some(t => t.id === teacherId);
+    if (!isTeacher) {
       throw new ForbiddenException('You are not the teacher of this assignment');
     }
 
@@ -280,7 +322,7 @@ export class AssignmentsService {
       where: { id },
       include: {
         course: {
-          select: { teacherId: true },
+          select: { teachers: { select: { id: true } } },
         },
       },
     });
@@ -289,7 +331,8 @@ export class AssignmentsService {
       throw new NotFoundException('Assignment not found');
     }
 
-    if (assignment.course.teacherId !== teacherId) {
+    const isTeacher = assignment.course.teachers.some(t => t.id === teacherId);
+    if (!isTeacher) {
       throw new ForbiddenException('You are not the teacher of this assignment');
     }
 

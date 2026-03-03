@@ -15,6 +15,8 @@ import { CourseResourcesModule } from './course-resources/course-resources.modul
 import { SemestersModule } from './semesters/semesters.module';
 import { AdminModule } from './admin/admin.module';
 import { AcademicsModule } from './academics/academics.module';
+import { StudentModule } from './student/student.module';
+import { TeacherModule } from './teacher/teacher.module';
 
 @Module({
   imports: [
@@ -31,6 +33,8 @@ import { AcademicsModule } from './academics/academics.module';
     SemestersModule,
     AdminModule,
     AcademicsModule,
+    StudentModule,
+    TeacherModule,
     ConfigModule.forRoot({ isGlobal: true }),
   ],
   controllers: [AppController],
