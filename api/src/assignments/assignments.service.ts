@@ -69,13 +69,7 @@ export class AssignmentsService {
           select: {
             id: true,
             title: true,
-            students: {
-              select: {
-                id: true,
-                email: true,
-                fullName: true,
-              },
-            },
+            learningModuleId: true,
           },
         },
         submissions: {
@@ -93,21 +87,32 @@ export class AssignmentsService {
     });
 
     console.log(`[AssignmentsService] Assignment created: ${assignment.id} - ${assignment.title}`);
-    console.log(`[AssignmentsService] Course students count: ${assignment.course?.students?.length || 0}`);
 
-    // Send notifications to enrolled students (after assignment is created)
-    if (assignment.course?.students) {
-      for (const student of assignment.course.students) {
-        console.log(`[AssignmentsService] Sending notification to student: ${student.id} - ${student.email}`);
-        await this.notificationsService.notifyNewAssignment(
-          student.id,
-          assignment.title,
-          assignment.course?.title || 'Cours inconnu',
-          assignment.id,
-        );
-      }
+    // Send notifications to students of the module (after assignment is created)
+    if (assignment.course?.learningModuleId) {
+      const recipients = await this.prisma.user.findMany({
+        where: {
+          role: 'STUDENT',
+          learningModuleId: assignment.course.learningModuleId,
+          id: { not: teacherId }, // ✅ safety: éviter de notifier le prof s'il est aussi STUDENT
+        },
+        select: { id: true },
+      });
+
+      console.log(`[AssignmentsService] Sending notifications to ${recipients.length} students in module ${assignment.course.learningModuleId}`);
+
+      await Promise.all(
+        recipients.map((u) =>
+          this.notificationsService.notifyNewAssignment(
+            u.id,
+            assignment.title,
+            assignment.course?.title || 'Cours inconnu',
+            assignment.id,
+          ),
+        ),
+      );
     } else {
-      console.log(`[AssignmentsService] No students found in course ${assignment.course?.id}`);
+      console.log(`[AssignmentsService] No learning module found for course ${assignment.course?.id}`);
     }
 
     return assignment;
