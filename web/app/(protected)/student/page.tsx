@@ -2,17 +2,22 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { useRouter } from "next/navigation";
 import { logout } from "@/lib/auth";
 import { getMySubjects, StudentSubject } from "@/lib/student-academics";
 import { Assignment, getAssignments } from "@/lib/assignments";
 
 export default function StudentPage() {
   const { user, loading } = useAuth();
+  const router = useRouter();
 
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string>("");
   const [subjectsCount, setSubjectsCount] = useState(0);
   const [assignmentsCount, setAssignmentsCount] = useState(0);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [lateCount, setLateCount] = useState(0);
+  const [submittedCount, setSubmittedCount] = useState(0);
   const [avgScore, setAvgScore] = useState<number | null>(null);
   const [nextAssignments, setNextAssignments] = useState<Assignment[]>([]);
   const [subjects, setSubjects] = useState<StudentSubject[]>([]);
@@ -24,6 +29,12 @@ export default function StudentPage() {
     return mod.semester ? `${mod.semester.name} / ${mod.name}` : mod.name;
   }
 
+  // Helper function stricte : récupère SEULEMENT la soumission du user connecté
+  function getMySubmission(a: any, userId?: string) {
+    if (!userId) return null;
+    return a?.submissions?.find((s: any) => s.studentId === userId);
+  }
+
   useEffect(() => {
     if (loading) return;
     if (!user) return;
@@ -32,32 +43,81 @@ export default function StudentPage() {
       setStatsLoading(true);
       setStatsError("");
       try {
-        const [subjects, assignments] = await Promise.all([getMySubjects(), getAssignments()]);
-        const subjectIds = new Set(subjects.map((s: StudentSubject) => s.id));
-        const myAssignments = assignments.filter((a: Assignment) => subjectIds.has(a.courseId));
-
+        const subjects = await getMySubjects();
         setSubjects(subjects);
         setSubjectsCount(subjects.length);
+
+        const courseIds = subjects.map((s) => s.id).filter(Boolean);
+
+        // si aucun cours => tout à zéro
+        if (!courseIds.length) {
+          setAssignmentsCount(0);
+          setPendingCount(0);
+          setLateCount(0);
+          setNextAssignments([]);
+          setAvgScore(null);
+          return;
+        }
+
+        const all = await Promise.all(courseIds.map((id) => getAssignments(id)));
+        const flat = all.flat();
+
+        const seen = new Set<string>();
+        const myAssignments = flat.filter((a) =>
+          seen.has(a.id) ? false : (seen.add(a.id), true)
+        );
+
         setAssignmentsCount(myAssignments.length);
 
-        // Récupérer les prochains devoirs (non soumis ou avec date limite future)
+        // Debug: confirmer la cause des IDs
+        if (myAssignments.length > 0 && myAssignments[0]?.submissions?.[0]) {
+          console.log("user.id", user?.id, "sub.studentId", myAssignments[0]?.submissions?.[0]?.studentId, "sub.student.id", myAssignments[0]?.submissions?.[0]?.student?.id);
+          console.log("getMySubmission result:", getMySubmission(myAssignments[0], user?.id));
+        }
+
+        // Patch 1 — Dashboard étudiant : comptage "à rendre / en retard / soumis" exclusif
+        const now = Date.now();
+
+        // ⚠️ Important: on détecte la soumission de l'étudiant via submissions[*].studentId
+        const submitted = myAssignments.filter((a: Assignment) =>
+          a.submissions?.some((s: any) => s.studentId === user.id)
+        );
+
+        const pending = myAssignments.filter((a: Assignment) =>
+          !a.submissions?.some((s: any) => s.studentId === user.id)
+        );
+
+        const pendingLate = pending.filter((a: Assignment) =>
+          a.dueDate ? new Date(a.dueDate).getTime() < now : false
+        );
+
+        const pendingFuture = pending.filter((a: Assignment) =>
+          !a.dueDate ? true : new Date(a.dueDate).getTime() >= now
+        );
+
+        // totals
+        setAssignmentsCount(myAssignments.length);
+
+        // si tu as des states dédiés (recommandé)
+        setPendingCount(pendingFuture.length);   // "à rendre"
+        setLateCount(pendingLate.length);        // "en retard"
+        setSubmittedCount(submitted.length);     // "soumis"
+
+        // Patch 3 — "Prochains Devoirs" : ne proposer que les devoirs NON soumis
         const upcomingAssignments = myAssignments
           .filter((a: Assignment) => {
             const mySub = a.submissions?.find((s: any) => s.studentId === user.id);
-            // Inclure les devoirs non soumis OU avec dueDate future
-            const isNotSubmitted = !mySub;
-            const hasDueDate = a.dueDate;
-            const isFuture = hasDueDate ? new Date(a.dueDate) > new Date() : false;
-            return isNotSubmitted && (isFuture || !hasDueDate);
+            if (mySub) return false; // ✅ déjà soumis => pas "à faire"
+            if (!a.dueDate) return true;
+            return new Date(a.dueDate).getTime() >= now; // ✅ futurs uniquement
           })
-          .sort((a: Assignment, b: Assignment) => {
-            // Trier par date d'échéance (les plus proches en premier)
+          .sort((a, b) => {
             if (!a.dueDate && !b.dueDate) return 0;
             if (!a.dueDate) return 1;
             if (!b.dueDate) return -1;
             return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
           })
-          .slice(0, 3); // Limiter aux 3 prochains devoirs
+          .slice(0, 3);
 
         setNextAssignments(upcomingAssignments);
 
@@ -69,12 +129,9 @@ export default function StudentPage() {
           }
         }
 
-        if (gradedScores.length === 0) {
-          setAvgScore(null);
-        } else {
-          const sum = gradedScores.reduce((acc, s) => acc + s, 0);
-          setAvgScore(sum / gradedScores.length);
-        }
+        setAvgScore(
+          gradedScores.length ? gradedScores.reduce((acc, s) => acc + s, 0) / gradedScores.length : null
+        );
       } catch (e: any) {
         setStatsError(e?.message ?? "Erreur");
       } finally {
@@ -84,7 +141,11 @@ export default function StudentPage() {
   }, [loading, user?.id]);
 
   const subjectsLabel = useMemo(() => (statsLoading ? "…" : String(subjectsCount)), [statsLoading, subjectsCount]);
-  const assignmentsLabel = useMemo(() => (statsLoading ? "…" : String(assignmentsCount)), [statsLoading, assignmentsCount]);
+  // 1) Garde assignmentsLabel simple
+  const assignmentsLabel = useMemo(() => {
+    if (statsLoading) return "...";
+    return String(assignmentsCount);
+  }, [statsLoading, assignmentsCount]);
   const avgLabel = useMemo(() => {
     if (statsLoading) return "…";
     if (avgScore === null) return "--";
@@ -155,16 +216,42 @@ export default function StudentPage() {
                 </div>
               </div>
               <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 border border-slate-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-slate-500">Devoirs</p>
-                    <p className="text-2xl sm:text-3xl font-bold text-slate-900 mt-1">{assignmentsLabel}</p>
-                  </div>
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                    <span className="text-lg sm:text-xl">📋</span>
-                  </div>
-                </div>
-              </div>
+  <div className="flex items-center justify-between">
+    <div>
+      <p className="text-sm text-slate-500">Devoirs</p>
+
+      <div className="mt-1">
+  <p className="text-2xl sm:text-3xl font-bold text-slate-900">
+    {assignmentsLabel}
+  </p>
+
+  {!statsLoading && (
+    <div className="mt-2 flex flex-wrap items-center gap-3">
+      <span className="inline-flex items-center whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-800">
+        {pendingCount} à faire
+      </span>
+
+      {lateCount > 0 && (
+        <span className="inline-flex items-center whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">
+          {lateCount} en retard
+        </span>
+      )}
+
+      {submittedCount > 0 && (
+        <span className="inline-flex items-center whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+          {submittedCount} soumis
+        </span>
+      )}
+    </div>
+  )}
+</div>
+    </div>
+
+    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+      <span className="text-lg sm:text-xl">📋</span>
+    </div>
+  </div>
+</div>
               <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 border border-slate-200">
                 <div className="flex items-center justify-between">
                   <div>
@@ -184,7 +271,7 @@ export default function StudentPage() {
               <div className="space-y-3">
                 {subjects.length > 0 ? (
                   subjects.map((subject) => (
-                    <div key={subject.id} className="p-4 border border-slate-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition cursor-pointer" onClick={() => window.location.href = `/student/courses/${subject.id}`}>
+                    <div key={subject.id} className="p-4 border border-slate-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition cursor-pointer" onClick={() => router.push(`/student/courses/${subject.id}`)}>
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="font-semibold text-slate-900">{subject.title}</p>
@@ -208,19 +295,40 @@ export default function StudentPage() {
               <div className="space-y-3">
                 {nextAssignments.length > 0 ? (
                   nextAssignments.map((assignment) => (
-                    <div key={assignment.id} className="p-4 border border-slate-200 rounded-lg hover:border-orange-300 hover:bg-orange-50 transition cursor-pointer" onClick={() => window.location.href = `/student/assignments`}>
+                    <div key={assignment.id} className="p-4 border border-slate-200 rounded-lg hover:border-orange-300 hover:bg-orange-50 transition cursor-pointer" onClick={() => router.push(`/student/assignments?courseId=${assignment.courseId}`)}>
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="font-semibold text-slate-900">{assignment.title}</p>
                           <p className="text-sm text-slate-500">
                             {assignment.dueDate 
-                              ? `À rendre avant le ${new Date(assignment.dueDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                              ? `À rendre avant le ${new Date(assignment.dueDate).toLocaleString("fr-FR", {
+                                  day: "numeric",
+                                  month: "long",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}`
                               : 'Pas de date limite'
                             }
                           </p>
                         </div>
-                        <span className="px-3 py-1 bg-orange-100 text-orange-800 text-xs font-semibold rounded-full">
-                          {!assignment.submissions?.find((s: any) => s.studentId === user?.id) ? 'À faire' : 'En cours'}
+                        <span
+                          className={[
+                            "px-3 py-1 text-xs font-semibold rounded-full",
+                            (() => {
+                              const mySub = assignment.submissions?.find((s: any) => s.studentId === user.id);
+                              const isSubmitted = !!mySub;
+                              const isLate = !isSubmitted && assignment.dueDate && new Date(assignment.dueDate) < new Date();
+                              return isLate ? "bg-red-100 text-red-800" : "bg-orange-100 text-orange-800";
+                            })()
+                          ].join(" ")}
+                        >
+                          {(() => {
+                            const mySub = assignment.submissions?.find((s: any) => s.studentId === user.id);
+                            const isSubmitted = !!mySub;
+                            const isLate = !isSubmitted && assignment.dueDate && new Date(assignment.dueDate) < new Date();
+                            return isLate ? "En retard" : "À faire";
+                          })()}
                         </span>
                       </div>
                     </div>

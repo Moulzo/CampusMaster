@@ -47,6 +47,7 @@ export default function StudentAssignmentsPage() {
   const [submissionOriginalNames, setSubmissionOriginalNames] = useState<Record<string, string>>({});
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [deletingFileIndex, setDeletingFileIndex] = useState<{assignmentId: string, index: number} | null>(null);
+  const [submittingAssignmentId, setSubmittingAssignmentId] = useState<string | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   const enrolledCourses = useMemo(() => {
@@ -92,25 +93,7 @@ export default function StudentAssignmentsPage() {
       setLoading(true);
       setError("");
       try {
-        const courseIds = enrolledCourses.map((c) => c.id).filter(Boolean);
-
-        if (!courseIds.length) {
-          setAssignments([]);
-          return;
-        }
-
-        let a = [];
-        if (selectedCourseId) {
-          a = await getAssignments(selectedCourseId);
-        } else {
-          const all = await Promise.all(courseIds.map((id) => getAssignments(id)));
-          a = all.flat();
-        }
-
-        const seen = new Set<string>();
-        a = a.filter((x: any) => (seen.has(x.id) ? false : (seen.add(x.id), true)));
-
-        setAssignments(a);
+        await refreshAssignments();
       } catch (e: any) {
         setError(e?.message ?? "Erreur");
       } finally {
@@ -118,6 +101,26 @@ export default function StudentAssignmentsPage() {
       }
     })();
   }, [selectedCourseId, user?.id, enrolledCourses]);
+
+  async function refreshAssignments() {
+    const courseIds = (courses ?? []).map((c) => c.id).filter(Boolean);
+
+    // si on n'a pas encore les cours, ne touche pas à la liste
+    if (!courseIds.length) return;
+
+    let a: any[] = [];
+    if (selectedCourseId) {
+      a = await getAssignments(selectedCourseId);
+    } else {
+      const all = await Promise.all(courseIds.map((id) => getAssignments(id)));
+      a = all.flat();
+    }
+
+    const seen = new Set<string>();
+    a = a.filter((x: any) => (seen.has(x.id) ? false : (seen.add(x.id), true)));
+
+    setAssignments(a);
+  }
 
   async function handleUploadAndSubmit(assignmentId: string, files?: File[]) {
     console.log('handleUploadAndSubmit called', { assignmentId, files: files?.map(f => f.name), count: files?.length });
@@ -128,6 +131,8 @@ export default function StudentAssignmentsPage() {
     }
 
     try {
+      setSubmittingAssignmentId(assignmentId);
+      
       // Upload tous les fichiers et récupérer leurs URLs
       const uploadedFiles: FileInfo[] = [];
       for (const file of files) {
@@ -151,11 +156,13 @@ export default function StudentAssignmentsPage() {
       
       // Envoyer le tableau JSON au backend
       await handleSubmit(assignmentId, JSON.stringify(uploadedFiles));
-      setSelectedFiles([]); // Reset selected files after submission
+      setSelectedFiles([]); // Reset selected files after submission (only on success)
     } catch (err) {
       console.error('uploadFiles error', err);
       setError(err instanceof Error ? err.message : 'Erreur upload');
       toast.push("error", err instanceof Error ? err.message : "Erreur upload");
+    } finally {
+      setSubmittingAssignmentId(null);
     }
   }
 
@@ -223,9 +230,7 @@ export default function StudentAssignmentsPage() {
         setSubmissionOriginalNames((prev) => ({ ...prev, [key]: originalName }));
       }
       toast.push("success", "Soumission envoyée");
-      const a = await getAssignments(selectedCourseId || undefined);
-      const enrolledIds = new Set(enrolledCourses.map((c) => c.id));
-      setAssignments(a.filter((x) => enrolledIds.has(x.courseId)));
+      await refreshAssignments();
     } catch (e: any) {
       const errorMessage = e?.message ?? "Erreur lors de la soumission";
       
@@ -453,10 +458,10 @@ export default function StudentAssignmentsPage() {
 
                           <button
                             onClick={() => selectedFiles.length > 0 ? handleUploadAndSubmit(a.id, selectedFiles) : handleSubmit(a.id)}
-                            disabled={submittingId === a.id}
+                            disabled={submittingId === a.id || submittingAssignmentId === a.id}
                             className="w-full px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-400 text-white rounded-lg font-medium transition"
                           >
-                            {submittingId === a.id
+                            {submittingId === a.id || submittingAssignmentId === a.id
                               ? "Envoi..."
                               : mySubmission
                               ? selectedFiles.length > 0

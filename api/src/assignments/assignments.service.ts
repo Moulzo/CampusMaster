@@ -119,6 +119,8 @@ export class AssignmentsService {
   }
 
   async findAll(userId: string, role: Role, courseId?: string) {
+    const studentIdForSubmissions = role === 'STUDENT' ? userId : undefined;
+
     // Si courseId est spécifié, vérifier l'accès
     if (courseId) {
       const course = await this.prisma.course.findUnique({
@@ -130,14 +132,14 @@ export class AssignmentsService {
 
       // ADMIN: tous les devoirs du cours
       if (role === 'ADMIN') {
-        return this.getAssignmentsWithRelations({ courseId });
+        return this.getAssignmentsWithRelations({ courseId, studentIdForSubmissions });
       }
 
       // TEACHER: seulement si c'est son cours
       if (role === 'TEACHER') {
         const isTeacher = course.teachers.some(t => t.id === userId);
         if (isTeacher) {
-          return this.getAssignmentsWithRelations({ courseId });
+          return this.getAssignmentsWithRelations({ courseId, studentIdForSubmissions });
         }
       }
 
@@ -145,7 +147,7 @@ export class AssignmentsService {
       if (role === 'STUDENT') {
         const canAccess = await this.assertStudentCanAccessCourse(userId, courseId);
         if (canAccess) {
-          return this.getAssignmentsWithRelations({ courseId });
+          return this.getAssignmentsWithRelations({ courseId, studentIdForSubmissions });
         }
       }
     }
@@ -153,19 +155,21 @@ export class AssignmentsService {
     // Sans courseId spécifique
     // ADMIN: tous les devoirs
     if (role === 'ADMIN') {
-      return this.getAssignmentsWithRelations({});
+      return this.getAssignmentsWithRelations({ studentIdForSubmissions });
     }
 
     // TEACHER: devoirs des cours où il enseigne (multi-teacher support)
     if (role === 'TEACHER') {
       return this.getAssignmentsWithRelations({
         courseTeacherId: userId,
+        studentIdForSubmissions,
       });
     }
 
     // STUDENT: devoirs des cours où il est inscrit
     return this.getAssignmentsWithRelations({
       studentId: userId,
+      studentIdForSubmissions,
     });
   }
 
@@ -174,6 +178,7 @@ export class AssignmentsService {
     studentId?: string;
     teacherId?: string; // legacy: auteur du devoir
     courseTeacherId?: string; // ✅ nouveau: enseigne le cours
+    studentIdForSubmissions?: string; // ✅ filtre submissions pour STUDENT
   } = {}) {
     const where: any = {};
 
@@ -215,6 +220,7 @@ export class AssignmentsService {
           } 
         },
         submissions: {
+          where: filter.studentIdForSubmissions ? { studentId: filter.studentIdForSubmissions } : undefined,
           include: {
             student: { select: { id: true, email: true, fullName: true } },
           },
