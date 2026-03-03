@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { getCourse } from "@/lib/courses";
 import { CourseResourcesPanel } from "@/components/course-resources/CourseResourcesPanel";
 import { CourseAssignmentsTab } from "@/components/teacher/courses/CourseAssignmentsTab";
-import { CourseStudentsTab } from "@/components/teacher/courses/CourseStudentsTab";
+import { TeacherCourseStudentsTab } from "@/components/teacher/TeacherCourseStudentsTab";
 
 export default function TeacherCourseDetailPage() {
   const { user, loading: authLoading } = useAuth();
@@ -134,7 +134,7 @@ export default function TeacherCourseDetailPage() {
       <div>
         {tab === "resources" && <CourseResourcesPanel courseId={courseId!} />}
         {tab === "assignments" && <CourseAssignmentsTab courseId={courseId!} />}
-        {tab === "students" && <CourseStudentsTab courseId={courseId!} />}
+        {tab === "students" && <TeacherCourseStudentsTab courseId={courseId!} />}
       </div>
     </div>
   );

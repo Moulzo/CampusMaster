@@ -1,4 +1,4 @@
-import { Controller, Get, Request, UseGuards } from "@nestjs/common";
+import { Controller, Get, Param, Request, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { RolesGuard } from "../auth/roles.guard";
@@ -19,5 +19,13 @@ export class TeacherSubjectsController {
   async findMySubjects(@Request() req: any) {
     const teacherId = getUserId(req);
     return this.coursesService.teacherFindAllSubjects(teacherId);
+  }
+
+  // ✅ NOUVEAU: liste des étudiants du cours (via learningModuleId)
+  @Get(":courseId/students")
+  @ApiOperation({ summary: "Get students enrolled in a teacher's course" })
+  async findSubjectStudents(@Request() req: any, @Param("courseId") courseId: string) {
+    const teacherId = getUserId(req);
+    return this.coursesService.teacherFindSubjectStudents(teacherId, courseId);
   }
 }

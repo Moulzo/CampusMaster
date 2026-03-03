@@ -22,3 +22,14 @@ export async function getTeacherSubjects() {
   }
   return res.json();
 }
+
+export type TeacherCourseStudent = { id: string; fullName: string; email: string };
+
+export async function getTeacherSubjectStudents(courseId: string) {
+  const res = await fetch(`${API_URL}/teacher/subjects/${courseId}/students`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("Erreur chargement étudiants");
+  return (await res.json()) as TeacherCourseStudent[];
+}

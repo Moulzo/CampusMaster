@@ -340,4 +340,33 @@ export class CoursesService {
 
     return this.normalizeTeachersList(courses);
   }
+
+  async teacherFindSubjectStudents(teacherId: string, courseId: string) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      select: {
+        id: true,
+        learningModuleId: true,
+        teachers: { select: { id: true } }, // multi-teacher
+      },
+    });
+
+    if (!course) throw new NotFoundException("Course not found");
+
+    // sécurité: le teacher doit enseigner ce cours
+    const isTeacher = course.teachers.some((t) => t.id === teacherId);
+    if (!isTeacher) throw new ForbiddenException("Not your course");
+
+    // nouveau modèle: étudiants = users rattachés au module du cours
+    if (!course.learningModuleId) return [];
+
+    return this.prisma.user.findMany({
+      where: {
+        role: "STUDENT",
+        learningModuleId: course.learningModuleId,
+      },
+      select: { id: true, fullName: true, email: true },
+      orderBy: { fullName: "asc" },
+    });
+  }
 }
