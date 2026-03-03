@@ -36,7 +36,7 @@ export function getNavItems(role: Role): NavItem[] {
     { label: "Dashboard", href: "/student", icon: "📊", enabled: true },
     { label: "Mes matières", href: "/student/subjects", icon: "📚", enabled: true },
     { label: "Devoirs", href: "/student/assignments", icon: "📝", enabled: true },
-    { label: "Notes", href: "/student/grades", icon: "📈", enabled: false },
+    { label: "Notes", href: "/student/grades", icon: "📈", enabled: true },
     { label: "Messages", href: "/student/messages", icon: "💬", enabled: false },
   ];
 }
