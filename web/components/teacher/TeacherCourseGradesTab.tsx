@@ -51,7 +51,8 @@ export function TeacherCourseGradesTab({ courseId }: { courseId: string }) {
 
   const [students, setStudents] = useState<Student[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>("");
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>("__AVERAGES__");
+  const AVERAGES_ID = "__AVERAGES__";
 
   // modal / form
   const [open, setOpen] = useState(false);
@@ -76,10 +77,12 @@ export function TeacherCourseGradesTab({ courseId }: { courseId: string }) {
       setAssignments(a);
       setStudents(s);
 
-      if (!selectedAssignmentId && a.length > 0) {
-        setSelectedAssignmentId(a[0].id);
-      } else if (selectedAssignmentId && !a.some((x) => x.id === selectedAssignmentId) && a.length > 0) {
-        setSelectedAssignmentId(a[0].id);
+      // Défaut: "Moyennes des étudiants"
+      if (!selectedAssignmentId) {
+        setSelectedAssignmentId(AVERAGES_ID);
+      } else if (selectedAssignmentId !== AVERAGES_ID && !a.some((x) => x.id === selectedAssignmentId)) {
+        // si le devoir sélectionné n'existe plus, revenir aux moyennes
+        setSelectedAssignmentId(AVERAGES_ID);
       }
     } catch (e: any) {
       setError(e?.message ?? "Erreur lors du chargement des notes");
@@ -100,8 +103,24 @@ export function TeacherCourseGradesTab({ courseId }: { courseId: string }) {
   );
 
   const rows = useMemo(() => {
-    if (!selectedAssignment) return [];
+    const isAvgMode = selectedAssignmentId === AVERAGES_ID;
     return students.map((st) => {
+      if (isAvgMode) {
+        return {
+          student: st,
+          submission: null as Submission | null,
+          status: "CORRIGE" as RowStatus, // pas utilisé en mode moyenne
+          displayName: (st.fullName ?? "").trim() || "(Nom non renseigné)",
+        };
+      }
+      if (!selectedAssignment) {
+        return {
+          student: st,
+          submission: null,
+          status: "NON_SOUMIS" as RowStatus,
+          displayName: (st.fullName ?? "").trim() || "(Nom non renseigné)",
+        };
+      }
       const sub = selectedAssignment.submissions?.find((x) => x.studentId === st.id) ?? null;
       const status = statusOf(sub);
       const displayName =
@@ -110,7 +129,29 @@ export function TeacherCourseGradesTab({ courseId }: { courseId: string }) {
         "(Nom non renseigné)";
       return { student: st, submission: sub, status, displayName };
     });
-  }, [students, selectedAssignment]);
+  }, [students, selectedAssignment, selectedAssignmentId]);
+
+  const averagesByStudentId = useMemo(() => {
+    // Aligné sur le dashboard étudiant: moyenne arithmétique des scores corrigés
+    const map = new Map<string, { sum: number; count: number }>();
+    for (const a of assignments) {
+      for (const sub of a.submissions ?? []) {
+        if (sub.score === null || sub.score === undefined) continue; // uniquement corrigés
+        const cur = map.get(sub.studentId) ?? { sum: 0, count: 0 };
+        cur.sum += Number(sub.score);
+        cur.count += 1;
+        map.set(sub.studentId, cur);
+      }
+    }
+    return map;
+  }, [assignments]);
+
+  function formatAverage(studentId: string) {
+    const v = averagesByStudentId.get(studentId);
+    if (!v || v.count <= 0) return "—";
+    const avg = v.sum / v.count;
+    return `${avg.toFixed(1)}/20`;
+  }
 
   function openGradeModal(student: Student, assignment: Assignment, submission: Submission) {
     setActive({ student, assignment, submission });
@@ -187,6 +228,7 @@ export function TeacherCourseGradesTab({ courseId }: { courseId: string }) {
             value={selectedAssignmentId}
             onChange={(e) => setSelectedAssignmentId(e.target.value)}
           >
+            <option value={AVERAGES_ID}>Moyennes des étudiants</option>
             {assignments.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.title}
@@ -202,13 +244,20 @@ export function TeacherCourseGradesTab({ courseId }: { courseId: string }) {
             <tr>
               <th className="text-left text-sm font-medium p-3">Nom</th>
               <th className="text-left text-sm font-medium p-3">Email</th>
-              <th className="text-left text-sm font-medium p-3">Statut</th>
-              <th className="text-left text-sm font-medium p-3">Note</th>
-              <th className="text-right text-sm font-medium p-3">Action</th>
+              {selectedAssignmentId === AVERAGES_ID ? (
+                <th className="text-left text-sm font-medium p-3">Moyenne</th>
+              ) : (
+                <>
+                  <th className="text-left text-sm font-medium p-3">Statut</th>
+                  <th className="text-left text-sm font-medium p-3">Note</th>
+                  <th className="text-right text-sm font-medium p-3">Action</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => {
+              const isAvgMode = selectedAssignmentId === AVERAGES_ID;
               const max = selectedAssignment?.maxScore ?? null;
               const scoreText =
                 r.submission?.score == null ? "—" : max == null ? String(r.submission.score) : `${r.submission.score}/${max}`;
@@ -217,43 +266,49 @@ export function TeacherCourseGradesTab({ courseId }: { courseId: string }) {
                 <tr key={r.student.id} className="border-b last:border-b-0">
                   <td className="p-3 text-sm">{r.displayName}</td>
                   <td className="p-3 text-sm">{r.student.email}</td>
-                  <td className="p-3 text-sm">
-                    <StatusBadge status={r.status} />
-                    {r.submission?.submittedAt && (
-                      <div className="text-xs text-zinc-500 mt-1">
-                        Déposé le {new Date(r.submission.submittedAt).toLocaleDateString("fr-FR", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit"
-                        })}
-                      </div>
-                    )}
-                  </td>
-                  <td className="p-3 text-sm">{scoreText}</td>
-                  <td className="p-3 text-sm text-right">
-                    {r.status === "NON_SOUMIS" ? (
-                      <span className="text-zinc-400">—</span>
-                    ) : (
-                      <button
-                        className="px-3 py-1.5 border rounded hover:bg-zinc-50"
-                        onClick={() => {
-                          if (!selectedAssignment || !r.submission) return;
-                          openGradeModal(r.student, selectedAssignment, r.submission);
-                        }}
-                      >
-                        {r.status === "CORRIGE" ? "Modifier la note" : "Noter"}
-                      </button>
-                    )}
-                  </td>
+                  {isAvgMode ? (
+                    <td className="p-3 text-sm">{formatAverage(r.student.id)}</td>
+                  ) : (
+                    <>
+                      <td className="p-3 text-sm">
+                        <StatusBadge status={r.status} />
+                        {r.submission?.submittedAt && (
+                          <div className="text-xs text-zinc-500 mt-1">
+                            Déposé le {new Date(r.submission.submittedAt).toLocaleDateString("fr-FR", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-3 text-sm">{scoreText}</td>
+                      <td className="p-3 text-sm text-right">
+                        {r.status === "NON_SOUMIS" ? (
+                          <span className="text-zinc-400">—</span>
+                        ) : (
+                          <button
+                            className="px-3 py-1.5 border rounded hover:bg-zinc-50"
+                            onClick={() => {
+                              if (!selectedAssignment || !r.submission) return;
+                              openGradeModal(r.student, selectedAssignment, r.submission);
+                            }}
+                          >
+                            {r.status === "CORRIGE" ? "Modifier la note" : "Noter"}
+                          </button>
+                        )}
+                      </td>
+                    </>
+                  )}
                 </tr>
               );
             })}
 
             {rows.length === 0 ? (
               <tr>
-                <td className="p-3 text-sm text-zinc-600" colSpan={5}>
+                <td className="p-3 text-sm text-zinc-600" colSpan={selectedAssignmentId === AVERAGES_ID ? 3 : 5}>
                   Aucun étudiant inscrit.
                 </td>
               </tr>
