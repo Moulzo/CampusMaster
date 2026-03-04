@@ -172,14 +172,30 @@ export function TeacherCourseGradesTab({ courseId }: { courseId: string }) {
     setSaving(true);
     setError("");
     try {
-      await apiFetchJson(`/submissions/${active.submission.id}/grade`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          score,
-          feedback: feedbackInput.trim() ? feedbackInput.trim() : undefined,
-        }),
-      });
+      if (active.submission.id) {
+        // cas normal
+        await apiFetchJson(`/submissions/${active.submission.id}/grade`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            score,
+            feedback: feedbackInput.trim() ? feedbackInput.trim() : undefined,
+          }),
+        });
+      } else {
+        // cas manuel (pas de submission)
+        await apiFetchJson(
+          `/submissions/assignment/${active.assignment.id}/student/${active.student.id}/grade`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              score,
+              feedback: feedbackInput.trim() ? feedbackInput.trim() : undefined,
+            }),
+          }
+        );
+      }
       await refresh();
       setOpen(false);
       setActive(null);
@@ -286,19 +302,29 @@ export function TeacherCourseGradesTab({ courseId }: { courseId: string }) {
                       </td>
                       <td className="p-3 text-sm">{scoreText}</td>
                       <td className="p-3 text-sm text-right">
-                        {r.status === "NON_SOUMIS" ? (
-                          <span className="text-zinc-400">—</span>
-                        ) : (
-                          <button
-                            className="px-3 py-1.5 border rounded hover:bg-zinc-50"
-                            onClick={() => {
-                              if (!selectedAssignment || !r.submission) return;
+                        <button
+                          className="px-3 py-1.5 border rounded hover:bg-zinc-50"
+                          onClick={() => {
+                            if (!selectedAssignment) return;
+
+                            if (r.submission) {
                               openGradeModal(r.student, selectedAssignment, r.submission);
-                            }}
-                          >
-                            {r.status === "CORRIGE" ? "Modifier la note" : "Noter"}
-                          </button>
-                        )}
+                              return;
+                            }
+
+                            // Pas de soumission => on ouvre un "mode manuel"
+                            setActive({
+                              student: r.student,
+                              assignment: selectedAssignment,
+                              submission: { id: "", studentId: r.student.id, score: null } as any, // placeholder
+                            });
+                            setScoreInput("");
+                            setFeedbackInput("");
+                            setOpen(true);
+                          }}
+                        >
+                          {r.status === "CORRIGE" ? "Modifier la note" : "Noter"}
+                        </button>
                       </td>
                     </>
                   )}

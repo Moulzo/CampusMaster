@@ -8,6 +8,7 @@ import {
   UseGuards,
   Request,
   Query,
+  NotFoundException,
 } from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { SubmissionsService } from './submissions.service';
@@ -62,5 +63,28 @@ export class SubmissionsController {
     const teacherId = req.user.id ?? req.user.sub;
 
     return this.submissionsService.grade(id, dto.score, teacherId, dto.feedback); // ✅ return
+  }
+
+  @Post('assignment/:assignmentId/student/:studentId/grade')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('TEACHER')
+  async gradeWithoutSubmission(
+    @Param('assignmentId') assignmentId: string,
+    @Param('studentId') studentId: string,
+    @Body() dto: GradeSubmissionDto,
+    @Request() req: any,
+  ) {
+    if (dto?.score === undefined || dto?.score === null) {
+      throw new BadRequestException('score is required');
+    }
+    const teacherId = req.user.id ?? req.user.sub;
+    
+    return this.submissionsService.upsertAndGrade({
+      assignmentId,
+      studentId,
+      teacherId,
+      score: dto.score,
+      feedback: dto.feedback,
+    });
   }
 }

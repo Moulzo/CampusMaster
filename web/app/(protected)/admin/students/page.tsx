@@ -20,6 +20,10 @@ export default function AdminStudentsPage() {
   const [q, setQ] = useState("");
   const [semesterId, setSemesterId] = useState<string>("");
   const [moduleIdFilter, setModuleIdFilter] = useState<string>("");
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
+  const [bulkModuleId, setBulkModuleId] = useState<string>(""); // "" = aucun module
+  const [bulkSaving, setBulkSaving] = useState(false);
 
   const moduleOptions = useMemo(() => {
     const opts = modules.map((m) => ({
@@ -51,12 +55,70 @@ export default function AdminStudentsPage() {
         false;
 
       // Filtre module
+      // moduleIdFilter:
+      // "" => pas de filtre (tous)
+      // "__NONE__" => seulement ceux sans module
+      // sinon => moduleId exact
       const matchesModule =
-        !moduleIdFilter || (s.learningModuleId ?? "") === moduleIdFilter;
+        !moduleIdFilter ||
+        (moduleIdFilter === "__NONE__"
+          ? !s.learningModuleId
+          : (s.learningModuleId ?? "") === moduleIdFilter);
 
       return matchesText && matchesSemester && matchesModule;
     });
   }, [students, q, semesterId, moduleIdFilter]);
+
+  const selectedCount = useMemo(
+    () => Object.values(selectedIds).filter(Boolean).length,
+    [selectedIds]
+  );
+
+  const allChecked = useMemo(() => {
+    if (!filteredStudents.length) return false;
+    return filteredStudents.every((s) => selectedIds[s.id]);
+  }, [filteredStudents, selectedIds]);
+
+  function toggleOne(id: string) {
+    setSelectedIds((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
+
+  function toggleAllVisible() {
+    setSelectedIds((prev) => {
+      const next = { ...prev };
+      const target = !allChecked;
+      for (const s of filteredStudents) next[s.id] = target;
+      return next;
+    });
+  }
+
+  async function applyBulk() {
+    const ids = Object.entries(selectedIds)
+      .filter(([, v]) => v)
+      .map(([k]) => k);
+    if (!ids.length) {
+      toast.push("error", "Aucun étudiant sélectionné");
+      return;
+    }
+
+    setBulkSaving(true);
+    try {
+      await Promise.all(
+        ids.map((studentId) =>
+          bulkModuleId
+            ? setStudentModule(studentId, bulkModuleId)
+            : unsetStudentModule(studentId)
+        )
+      );
+      toast.push("success", "Affectation en masse effectuée");
+      setSelectedIds({});
+      await refresh();
+    } catch (e: any) {
+      toast.push("error", e?.message ?? "Erreur affectation en masse");
+    } finally {
+      setBulkSaving(false);
+    }
+  }
 
   async function refresh() {
     setLoading(true);
@@ -122,7 +184,20 @@ export default function AdminStudentsPage() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Étudiants</h1>
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="text-2xl font-bold">Étudiants</h1>
+          <button
+            className={`px-3 py-2 rounded border ${
+              bulkMode ? "bg-slate-900 text-white border-slate-900" : "hover:bg-slate-50"
+            }`}
+            onClick={() => {
+              setBulkMode((v) => !v);
+              setSelectedIds({});
+            }}
+          >
+            {bulkMode ? "Quitter l'affectation en masse" : "Affectation en masse"}
+          </button>
+        </div>
       </div>
 
       {/* Filtres */}
@@ -151,6 +226,7 @@ export default function AdminStudentsPage() {
             className="border rounded px-3 py-2 w-full"
           >
             <option value="">Tous les modules</option>
+            <option value="__NONE__">Aucun module</option>
             {modules
               .filter(m => !semesterId || m.semesterId === semesterId)
               .map((m) => (
@@ -165,6 +241,45 @@ export default function AdminStudentsPage() {
             {err && <span className="text-sm text-red-600">{err}</span>}
           </div>
         </div>
+
+        {bulkMode && (
+          <div className="border-t pt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-3">
+              <button
+                className="px-3 py-2 border rounded hover:bg-slate-50"
+                onClick={toggleAllVisible}
+                disabled={!filteredStudents.length}
+              >
+                {allChecked ? "Tout décocher" : "Tout sélectionner"}
+              </button>
+              <span className="text-sm text-slate-600">
+                {selectedCount} sélectionné{selectedCount > 1 ? "s" : ""}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <select
+                className="border rounded px-3 py-2"
+                value={bulkModuleId}
+                onChange={(e) => setBulkModuleId(e.target.value)}
+              >
+                <option value="">Aucun module</option>
+                {modules.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.semester ? `${m.semester.name} / ${m.name}` : m.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                onClick={applyBulk}
+                disabled={bulkSaving}
+              >
+                {bulkSaving ? "Application..." : "Appliquer"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Tableau */}
@@ -177,6 +292,16 @@ export default function AdminStudentsPage() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50">
               <tr>
+                {bulkMode && (
+                  <th className="text-left p-3 w-[44px]">
+                    <input
+                      type="checkbox"
+                      checked={allChecked}
+                      onChange={toggleAllVisible}
+                      aria-label="Tout sélectionner"
+                    />
+                  </th>
+                )}
                 <th className="text-left p-3">Étudiant</th>
                 <th className="text-left p-3">Email</th>
                 <th className="text-left p-3">Module actuel</th>
@@ -187,6 +312,16 @@ export default function AdminStudentsPage() {
             <tbody>
               {filteredStudents.map((student) => (
                 <tr key={student.id} className="border-t">
+                  {bulkMode && (
+                    <td className="p-3">
+                      <input
+                        type="checkbox"
+                        checked={!!selectedIds[student.id]}
+                        onChange={() => toggleOne(student.id)}
+                        aria-label={`Sélectionner ${student.fullName}`}
+                      />
+                    </td>
+                  )}
                   <td className="p-3 font-medium">{student.fullName}</td>
                   <td className="p-3">{student.email}</td>
                   <td className="p-3">{getModuleInfo(student)}</td>

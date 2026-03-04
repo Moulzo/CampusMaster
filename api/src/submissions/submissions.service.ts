@@ -361,4 +361,56 @@ export class SubmissionsService {
 
     return updatedSubmission; // ✅ IMPORTANT
   }
+
+  async upsertAndGrade(input: {
+    assignmentId: string;
+    studentId: string;
+    teacherId: string;
+    score: number;
+    feedback?: string;
+  }) {
+    // (optionnel mais recommandé) vérifier que teacher a bien accès à ce course/assignment
+    const assignment = await this.prisma.assignment.findUnique({
+      where: { id: input.assignmentId },
+      select: { id: true, courseId: true },
+    });
+    if (!assignment) throw new NotFoundException("Assignment not found");
+
+    const now = new Date();
+
+    const submission = await this.prisma.submission.upsert({
+      where: {
+        studentId_assignmentId: {
+          studentId: input.studentId,
+          assignmentId: input.assignmentId,
+        },
+      },
+      create: {
+        studentId: input.studentId,
+        assignmentId: input.assignmentId,
+        fileUrls: null,          // "sans fichier"
+        submittedAt: now,        // trace (tu peux aussi mettre null si tu préfères)
+        score: input.score,
+        feedback: input.feedback ?? null,
+        correctedAt: now,
+      },
+      update: {
+        score: input.score,
+        feedback: input.feedback ?? null,
+        correctedAt: now,
+      },
+      select: {
+        id: true,
+        studentId: true,
+        assignmentId: true,
+        score: true,
+        feedback: true,
+        submittedAt: true,
+        correctedAt: true,
+        student: { select: { id: true, email: true, fullName: true } },
+      },
+    });
+
+    return submission;
+  }
 }
