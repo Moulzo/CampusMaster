@@ -15,24 +15,21 @@ function isCorrected(sub: any) {
   return !!sub?.correctedAt || (sub?.score !== null && sub?.score !== undefined);
 }
 
-function computeLate(assignment: any, sub: any) {
-  if (!assignment?.dueDate) return { isLate: false, label: "" };
+function computeLate(assignment: any, sub: any | null) {
+  const dueAt = assignment?.dueDate ? new Date(assignment.dueDate) : null;
+  if (!dueAt) return { isLate: false, label: "" };
 
-  const due = new Date(assignment.dueDate);
-  if (Number.isNaN(due.getTime())) return { isLate: false, label: "" };
-
-  // pas de soumission -> en retard si now > due
+  // pas de soumission + deadline dépassée => en retard
   if (!sub) {
-    const late = Date.now() > due.getTime();
-    return { isLate: late, label: late ? " (en retard)" : "" };
+    const late = Date.now() > dueAt.getTime();
+    return { isLate: late, label: late ? "En retard" : "" };
   }
 
-  // soumission -> en retard seulement si déposé après la deadline
+  // soumission existante : en retard si soumis après la deadline
   const submittedAt = sub?.submittedAt ? new Date(sub.submittedAt) : null;
-  if (!submittedAt || Number.isNaN(submittedAt.getTime())) return { isLate: false, label: "" };
+  const late = !!submittedAt && submittedAt.getTime() > dueAt.getTime();
 
-  const late = submittedAt.getTime() > due.getTime();
-  return { isLate: late, label: late ? " (déposé en retard)" : "" };
+  return { isLate: late, label: late ? "En retard" : "" };
 }
 
 interface StudentAssignmentsTabProps {
@@ -103,6 +100,9 @@ export function StudentAssignmentsTab({ courseId }: StudentAssignmentsTabProps) 
         const corrected = isCorrected(sub);
         const { isLate, label: lateLabel } = computeLate(assignment, sub);
         
+        // Debug temporaire
+        console.log("dueDate", assignment.dueDate, "submittedAt", sub?.submittedAt, "isLate", isLate);
+        
         return (
           <div key={assignment.id} className="border rounded-lg p-4">
             <div className="flex items-start justify-between">
@@ -114,9 +114,8 @@ export function StudentAssignmentsTab({ courseId }: StudentAssignmentsTabProps) 
                 
                 <div className="flex items-center gap-4 mt-2 text-sm text-slate-500">
                   {assignment.dueDate && (
-                    <span className={isLate ? "text-red-600 font-medium" : ""}>
+                    <span>
                       📅 Limite: {new Date(assignment.dueDate).toLocaleDateString("fr-FR")}
-                      {isLate && lateLabel}
                     </span>
                   )}
                   {assignment.maxScore && (
@@ -129,6 +128,17 @@ export function StudentAssignmentsTab({ courseId }: StudentAssignmentsTabProps) 
                     <span>
                       ✅ Déjà déposé ({assignment.submissions!.length} fichier
                       {assignment.submissions!.length > 1 ? "s" : ""})
+                      {sub?.submittedAt && (
+                        <span className="ml-2 text-xs">
+                          le {new Date(sub.submittedAt).toLocaleDateString("fr-FR", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit"
+                          })}
+                        </span>
+                      )}
                     </span>
 
                     {corrected && (
@@ -139,6 +149,13 @@ export function StudentAssignmentsTab({ courseId }: StudentAssignmentsTabProps) 
                   </div>
                 )}
               </div>
+
+              {/* Badge unique "En retard" (en haut à droite) */}
+              {isLate && (
+                <span className="inline-flex items-center px-2 py-1 rounded text-xs bg-amber-100 text-amber-700">
+                  {lateLabel || "En retard"}
+                </span>
+              )}
 
               <div className="ml-4">
                 <input

@@ -58,11 +58,6 @@ export class SubmissionsService {
     throw new ForbiddenException("You are not allowed to submit for this course (module mismatch)");
   }
 
-    const now = new Date();
-    if (now.getTime() > new Date(assignment.dueDate).getTime()) {
-      throw new ForbiddenException('Deadline has passed');
-    }
-
     const existing = await this.prisma.submission.findUnique({
       where: {
         studentId_assignmentId: {

@@ -7,6 +7,7 @@ import { getCourse } from "@/lib/courses";
 import { CourseResourcesPanel } from "@/components/course-resources/CourseResourcesPanel";
 import { CourseAssignmentsTab } from "@/components/teacher/courses/CourseAssignmentsTab";
 import { TeacherCourseStudentsTab } from "@/components/teacher/TeacherCourseStudentsTab";
+import { TeacherCourseGradesTab } from "@/components/teacher/TeacherCourseGradesTab";
 
 export default function TeacherCourseDetailPage() {
   const { user, loading: authLoading } = useAuth();
@@ -17,7 +18,7 @@ export default function TeacherCourseDetailPage() {
   const [course, setCourse] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
-  const [tab, setTab] = useState<"resources" | "assignments" | "students">("resources");
+  const [tab, setTab] = useState<"resources" | "assignments" | "students" | "grades">("resources");
 
   useEffect(() => {
     if (authLoading) return;
@@ -128,6 +129,13 @@ export default function TeacherCourseDetailPage() {
         >
           Étudiants inscrits
         </button>
+
+        <button
+          className={`pb-2 ${tab === "grades" ? "text-blue-600 border-b-2 border-blue-600" : "text-zinc-600"}`}
+          onClick={() => setTab("grades")}
+        >
+          Notes
+        </button>
       </div>
 
       {/* Contenu des onglets */}
@@ -135,6 +143,7 @@ export default function TeacherCourseDetailPage() {
         {tab === "resources" && <CourseResourcesPanel courseId={courseId!} />}
         {tab === "assignments" && <CourseAssignmentsTab courseId={courseId!} />}
         {tab === "students" && <TeacherCourseStudentsTab courseId={courseId!} />}
+        {tab === "grades" && <TeacherCourseGradesTab courseId={courseId!} />}
       </div>
     </div>
   );

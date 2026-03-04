@@ -310,7 +310,16 @@ export default function StudentAssignmentsPage() {
                 ? a.submissions?.find((s) => s.studentId === user.id)
                 : undefined;
 
-              const canResubmit = mySubmission && !mySubmission.correctedAt && isBeforeDueDate(a.dueDate);
+              const dueAt = a.dueDate ? new Date(a.dueDate) : null;
+              const submittedAt = mySubmission?.submittedAt ? new Date(mySubmission.submittedAt) : null;
+              const isLate =
+                !!dueAt &&
+                (
+                  (!submittedAt && Date.now() > dueAt.getTime()) ||
+                  (submittedAt && submittedAt.getTime() > dueAt.getTime())
+                );
+
+              const canResubmit = !!mySubmission && !mySubmission.correctedAt;
 
               return (
                 <div key={a.id} className="bg-white rounded-lg shadow-md border border-slate-200 p-6">
@@ -344,15 +353,22 @@ export default function StudentAssignmentsPage() {
                       <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
                         <div className="flex items-center justify-between mb-2">
                           <p className="text-sm font-semibold text-slate-900">Ma soumission</p>
-                          {mySubmission ? (
-                            <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-full">
-                              Soumis
-                            </span>
-                          ) : (
-                            <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full">
-                              Non soumis
-                            </span>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {mySubmission ? (
+                              <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-full">
+                                Soumis
+                              </span>
+                            ) : (
+                              <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full">
+                                Non soumis
+                              </span>
+                            )}
+                            {isLate && (
+                              <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full">
+                                En retard
+                              </span>
+                            )}
+                          </div>
                         </div>
                         
                         {mySubmission ? (
@@ -482,7 +498,7 @@ export default function StudentAssignmentsPage() {
                           <p className="text-sm text-amber-800">
                             {mySubmission.correctedAt
                               ? "Soumission corrigée : modification désactivée."
-                              : "Date limite dépassée : modification désactivée."}
+                              : "Date limite dépassée : modification autorisée (soumission marquée \"en retard\")."}
                           </p>
                         </div>
                       ) : null}
