@@ -50,6 +50,9 @@ model User {
   notifications       Notification[]
   courseResources     CourseResource[]
 
+  // Annonces créées par l'utilisateur
+  announcements      Announcement[] @relation("AnnouncementAuthor")
+
   // ✅ Cours où l'user est prof (many-to-many)
   teachingCourses     Course[]      @relation("CourseTeachers")
 
@@ -97,6 +100,9 @@ model Course {
 
   // Étudiants inscrits (many-to-many)
   students           User[]   @relation("StudentCourses")
+
+  // Annonces du cours
+  announcements      Announcement[] @relation("CourseAnnouncements")
 
   assignments        Assignment[]
   courseResources    CourseResource[]
@@ -207,4 +213,22 @@ model CourseResource {
 
   @@index([courseId])
   @@index([teacherId])
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+
+  courseId  String
+  course    Course   @relation("CourseAnnouncements", fields: [courseId], references: [id], onDelete: Cascade)
+
+  authorId  String
+  author    User     @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([courseId])
+  @@index([authorId])
 }

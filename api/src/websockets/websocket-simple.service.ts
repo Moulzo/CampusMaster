@@ -1,9 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class WebSocketService {
   private connectedClients: Map<string, any> = new Map();
   private logger: Logger = new Logger('WebSocketService');
+
+  constructor(private prisma: PrismaService) {}
 
   addClient(userId: string, client: any) {
     this.connectedClients.set(userId, client);
@@ -72,11 +75,22 @@ export class WebSocketService {
     this.logger.log(`✅ Broadcast terminé (${clientCount} clients)`);
   }
 
-  updateNotificationCount(userId: string) {
+  async updateNotificationCount(userId: string) {
     const client = this.connectedClients.get(userId);
-    if (client) {
-      client.emit('notifications:count', 0); // Simplifié pour l'instant
-      this.logger.log(`📊 Compteur de notifications mis à jour pour ${userId}`);
+    if (!client) return;
+
+    try {
+      const unread = await this.prisma.notification.count({
+        where: { 
+          userId,
+          readAt: null,
+        },
+      });
+
+      client.emit('notifications:count', unread);
+      this.logger.log(`📊 Compteur de notifications mis à jour pour ${userId}: ${unread}`);
+    } catch (error) {
+      this.logger.error(`❌ Erreur updateNotificationCount pour ${userId}:`, error);
     }
   }
 }

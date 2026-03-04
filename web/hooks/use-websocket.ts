@@ -204,6 +204,11 @@ export function useWebSocket(token: string | null) {
       setUnreadCount(0);
     };
 
+    const handleNotificationCount = (count: number) => {
+      console.log('[useWebSocket] 📊 Compteur de notifications mis à jour:', count);
+      setUnreadCount(count);
+    };
+
     // Enregistrer les listeners
     websocketService.on('connect', handleConnect);
     websocketService.on('disconnect', handleDisconnect);
@@ -213,6 +218,7 @@ export function useWebSocket(token: string | null) {
     websocketService.on('notification:marked-read', handleMarkedRead);
     websocketService.on('notification:deleted', handleDeleted);
     websocketService.on('notifications:all-read', handleAllRead);
+    websocketService.on('notifications:count', handleNotificationCount);
 
     return () => {
       console.log('[useWebSocket] 🧹 Cleanup des listeners');
@@ -224,6 +230,7 @@ export function useWebSocket(token: string | null) {
       websocketService.off('notification:marked-read', handleMarkedRead);
       websocketService.off('notification:deleted', handleDeleted);
       websocketService.off('notifications:all-read', handleAllRead);
+      websocketService.off('notifications:count', handleNotificationCount);
     };
   }, [token]);
 

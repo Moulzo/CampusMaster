@@ -7,6 +7,7 @@ import { getCourse } from "@/lib/courses";
 import { CourseResourcesPanel } from "@/components/course-resources/CourseResourcesPanel";
 import { StudentAssignmentsTab } from "@/components/student/courses/StudentAssignmentsTab";
 import StudentGradesTab from "@/components/student/StudentGradesTab";
+import { StudentCourseAnnouncementsTab } from "@/components/student/courses/StudentCourseAnnouncementsTab";
 
 export default function StudentCourseDetailPage() {
   const { user, loading: authLoading } = useAuth();
@@ -20,8 +21,8 @@ export default function StudentCourseDetailPage() {
   const [course, setCourse] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"resources" | "assignments" | "grades">(
-    initialTab === "assignments" ? "assignments" : initialTab === "grades" ? "grades" : "resources"
+  const [tab, setTab] = useState<"resources" | "assignments" | "grades" | "announcements">(
+    initialTab === "assignments" ? "assignments" : initialTab === "grades" ? "grades" : initialTab === "announcements" ? "announcements" : "resources"
   );
 
   useEffect(() => {
@@ -100,6 +101,13 @@ export default function StudentCourseDetailPage() {
         >
           Notes
         </button>
+
+        <button
+          className={`pb-2 ${tab === "announcements" ? "text-blue-600 border-b-2 border-blue-600" : "text-zinc-600"}`}
+          onClick={() => setTab("announcements")}
+        >
+          Annonces
+        </button>
       </div>
 
       {tab === "resources" && (
@@ -109,6 +117,7 @@ export default function StudentCourseDetailPage() {
       {tab === "assignments" && <StudentAssignmentsTab courseId={courseId!} />}
 
       {tab === "grades" && <StudentGradesTab courseId={courseId!} />}
+      {tab === "announcements" && <StudentCourseAnnouncementsTab courseId={courseId!} />}
     </div>
   );
 }
