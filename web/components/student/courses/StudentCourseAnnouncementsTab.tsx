@@ -24,6 +24,18 @@ export function StudentCourseAnnouncementsTab({ courseId }: { courseId: string }
     })();
   }, [courseId]);
 
+  // ✅ Auto-scroll avec hash
+  useEffect(() => {
+    if (!window.location.hash) return;
+    const el = document.querySelector(window.location.hash);
+    if (!el) return;
+    
+    // Attendre que les données soient chargées
+    setTimeout(() => {
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 100);
+  }, [items.length]);
+
   if (loading) return <div className="p-4 text-sm text-zinc-600">Chargement…</div>;
   if (err) return <div className="p-4 text-sm text-red-700">{err}</div>;
 
@@ -33,7 +45,7 @@ export function StudentCourseAnnouncementsTab({ courseId }: { courseId: string }
         <div className="text-sm text-zinc-600">Aucune annonce pour le moment.</div>
       ) : (
         items.map((a) => (
-          <div key={a.id} className="border rounded-lg p-4 bg-white">
+          <div key={a.id} id={`announcement-${a.id}`} className="border rounded-lg p-4 bg-white">
             <div className="font-semibold">{a.title}</div>
             <div className="text-xs text-zinc-500 mt-1">
               Publiée le{" "}

@@ -80,6 +80,18 @@ export default function StudentGradesTab({ courseId }: { courseId: string }) {
     })();
   }, [courseId, user?.id]);
 
+  // ✅ Auto-scroll avec hash
+  useEffect(() => {
+    if (!window.location.hash) return;
+    const el = document.querySelector(window.location.hash);
+    if (!el) return;
+    
+    // Attendre que les données soient chargées
+    setTimeout(() => {
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 100);
+  }, [rows.length]);
+
   const avg = useMemo(() => {
     const graded = rows.filter((r) => r.status === "CORRIGE" && r.score !== null);
     if (!graded.length) return null;
@@ -140,7 +152,7 @@ export default function StudentGradesTab({ courseId }: { courseId: string }) {
                 </tr>
               ) : (
                 rows.map((r) => (
-                  <tr key={r.id} className="hover:bg-slate-50">
+                  <tr key={r.id} id={`grade-${r.id}`} className="hover:bg-slate-50 border-b last:border-b-0">
                     <td className="px-6 py-4 font-semibold text-slate-900">{r.title}</td>
                     <td className="px-6 py-4">
                       <span

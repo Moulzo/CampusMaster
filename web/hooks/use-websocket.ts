@@ -137,21 +137,24 @@ export function useWebSocket(token: string | null) {
 
     // ✅ Recevoir une nouvelle notification en temps réel
     const handleNotification = (notification: Notification) => {
-      console.log('[useWebSocket] 📬 Nouvelle notification:', {
+      console.log('[useWebSocket] � Notification reçue:', {
         id: notification.id,
-        title: notification.title,
         type: notification.type,
+        title: notification.title,
+        message: notification.message,
+        isRead: notification.isRead,
+        metadata: notification.metadata,
+        createdAt: notification.createdAt
       });
-      
-      setNotifications(prev => {
-        // Éviter les doublons
-        if (prev.some(n => n.id === notification.id)) {
-          console.warn('[useWebSocket] ⚠️ Notification déjà présente:', notification.id);
+
+      setNotifications((prev) => {
+        // Éviter les doublons basé sur l'ID
+        if (prev.some((n) => n.id === notification.id)) {
+          console.log('[useWebSocket] ⚠️ Notification déjà existante, ignorée');
           return prev;
         }
-        return [notification, ...prev];
+        return [...prev, notification];
       });
-      
       if (!notification.isRead) {
         setUnreadCount(prev => prev + 1);
       }

@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useWebSocket } from '../hooks/use-websocket';
+import { getNotificationHref, onOpenNotification, AppNotification } from "@/lib/notifications";
 import { Bell, Check, Trash2, X } from 'lucide-react';
 
 interface NotificationPanelProps {
@@ -10,6 +12,7 @@ interface NotificationPanelProps {
 
 export function NotificationPanel({ token }: NotificationPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const router = useRouter();
   const { isConnected, notifications, unreadCount, markAsRead, deleteNotification } = useWebSocket(token);
 
   const handleMarkAsRead = (notificationId: string) => {
@@ -19,6 +22,24 @@ export function NotificationPanel({ token }: NotificationPanelProps) {
   const handleDelete = (notificationId: string) => {
     deleteNotification(notificationId);
   };
+
+  function onOpenNotificationHandler(notification: AppNotification) {
+  console.log("[notif debug]", {
+    type: notification.type,
+    metadata: notification.metadata,
+    href: getNotificationHref(notification),
+  });
+  
+  onOpenNotification(notification, (href: string) => {
+    // Auto-lecture si non lue
+    if (!notification.isRead) {
+      markAsRead(notification.id);
+    }
+    // Fermer le panel et naviguer
+    setIsOpen(false);
+    router.push(href);
+  });
+}
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -100,51 +121,65 @@ export function NotificationPanel({ token }: NotificationPanelProps) {
               </div>
             ) : (
               <div className="divide-y divide-gray-100">
-                {notifications.map((notification) => (
-                  <div
-                    key={notification.id}
-                    className={`p-4 hover:bg-gray-50 transition-colors ${
-                      !notification.isRead ? 'bg-blue-50' : ''
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <span className="text-xl">{getNotificationIcon(notification.type)}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900 text-sm">
-                              {notification.title}
-                            </p>
-                            <p className="text-gray-600 text-sm mt-1">
-                              {notification.message}
-                            </p>
-                            <p className="text-xs text-gray-400 mt-2">
-                              {formatTime(notification.createdAt)}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-1 flex-shrink-0">
-                            {!notification.isRead && (
+                {notifications.map((notification) => {
+                  return (
+                    <div
+                      key={notification.id}
+                      className={`p-4 hover:bg-gray-50 transition-colors ${
+                        !notification.isRead ? 'bg-blue-50' : ''
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="text-xl">{getNotificationIcon(notification.type)}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
+                              {/* Notification cliquable */}
                               <button
-                                onClick={() => handleMarkAsRead(notification.id)}
-                                className="p-1 text-blue-600 hover:text-blue-800 transition-colors"
-                                title="Marquer comme lu"
+                                onClick={() => onOpenNotificationHandler(notification)}
+                                className="text-left w-full"
                               >
-                                <Check className="w-4 h-4" />
+                                  <p className="font-medium text-gray-900 text-sm">
+                                    {notification.title}
+                                  </p>
+                                  <p className="text-gray-600 text-sm mt-1">
+                                    {notification.message}
+                                  </p>
+                                  <p className="text-xs text-gray-400 mt-2">
+                                    {formatTime(notification.createdAt)}
+                                  </p>
+                                </button>
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {!notification.isRead && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMarkAsRead(notification.id);
+                                  }}
+                                  className="p-1 text-blue-600 hover:text-blue-800 transition-colors"
+                                  title="Marquer comme lu"
+                                >
+                                  <Check className="w-4 h-4" />
+                                </button>
+                              )}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(notification.id);
+                                }}
+                                className="p-1 text-red-600 hover:text-red-800 transition-colors"
+                                title="Supprimer"
+                              >
+                                <Trash2 className="w-4 h-4" />
                               </button>
-                            )}
-                            <button
-                              onClick={() => handleDelete(notification.id)}
-                              className="p-1 text-red-600 hover:text-red-800 transition-colors"
-                              title="Supprimer"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

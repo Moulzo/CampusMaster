@@ -107,6 +107,7 @@ export class AssignmentsService {
             u.id,
             assignment.title,
             assignment.course?.title || 'Cours inconnu',
+            assignment.courseId,  // ✅ Ajouté
             assignment.id,
           ),
         ),

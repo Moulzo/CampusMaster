@@ -57,6 +57,18 @@ export function StudentAssignmentsTab({ courseId }: StudentAssignmentsTabProps) 
     loadAssignments();
   }, [courseId, toast]);
 
+  // ✅ Auto-scroll avec hash
+  useEffect(() => {
+    if (!window.location.hash) return;
+    const el = document.querySelector(window.location.hash);
+    if (!el) return;
+    
+    // Attendre que les données soient chargées
+    setTimeout(() => {
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 100);
+  }, [assignments.length]);
+
   async function handleFileUpload(assignmentId: string, file: File) {
     setUploading(assignmentId);
     
@@ -104,7 +116,7 @@ export function StudentAssignmentsTab({ courseId }: StudentAssignmentsTabProps) 
         console.log("dueDate", assignment.dueDate, "submittedAt", sub?.submittedAt, "isLate", isLate);
         
         return (
-          <div key={assignment.id} className="border rounded-lg p-4">
+          <div key={assignment.id} id={`assignment-${assignment.id}`} className="border rounded-lg p-4">
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <h3 className="font-semibold text-lg">{assignment.title}</h3>

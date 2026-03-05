@@ -29,11 +29,28 @@ export class NotificationsService {
     message: string,
     type: NotificationType,
     options?: {
-      assignmentId?: string;
       metadata?: Prisma.InputJsonValue;
     },
   ) {
     try {
+      // Sécuriser : merger courseId/assignmentId dans metadata selon le type
+      const baseMetadata =
+        options?.metadata && typeof options.metadata === "object"
+          ? (options.metadata as Record<string, any>)
+          : {};
+
+      const mergedMetadata = { ...baseMetadata };
+
+      // NEW_ASSIGNMENT / NEW_GRADE doivent avoir courseId + assignmentId
+      if (type === "NEW_ASSIGNMENT" || type === "NEW_GRADE") {
+        // Note: ces champs doivent être passés dans options.metadata
+        if (options?.metadata && typeof options.metadata === "object") {
+          const meta = options.metadata as Record<string, any>;
+          if (meta.courseId) mergedMetadata.courseId = meta.courseId;
+          if (meta.assignmentId) mergedMetadata.assignmentId = meta.assignmentId;
+        }
+      }
+
       // ✅ 1. Créer en base de données
       const notification = await this.prisma.notification.create({
         data: {
@@ -42,8 +59,7 @@ export class NotificationsService {
           message,
           type,
           isRead: false,
-          assignmentId: options?.assignmentId ?? null,
-          metadata: options?.metadata ?? undefined,
+          metadata: Object.keys(mergedMetadata).length ? mergedMetadata : undefined,
         },
       });
 
@@ -244,22 +260,27 @@ export class NotificationsService {
   }
 
   // Helper methods for common notification types
-  async notifyNewAssignment(userId: string, assignmentTitle: string, courseTitle: string, assignmentId: string) {
+  async notifyNewAssignment(userId: string, assignmentTitle: string, courseTitle: string, courseId: string, assignmentId: string) {
     return this.createNotification(
       userId,
       assignmentTitle,
       `Un nouveau devoir "${assignmentTitle}" a été publié dans le cours "${courseTitle}".`,
       'NEW_ASSIGNMENT',
-      { assignmentId }
+      { 
+        metadata: { courseId, assignmentId }
+      }
     );
   }
 
-  async notifyNewGrade(userId: string, assignmentTitle: string, score: number, maxScore: number) {
+  async notifyNewGrade(userId: string, assignmentTitle: string, score: number, maxScore: number, courseId: string, assignmentId: string) {
     return this.createNotification(
       userId,
       'Note disponible',
       `Votre note pour le devoir "${assignmentTitle}" est disponible : ${score}/${maxScore}.`,
-      'NEW_GRADE'
+      'NEW_GRADE',
+      { 
+        metadata: { courseId, assignmentId }
+      }
     );
   }
 

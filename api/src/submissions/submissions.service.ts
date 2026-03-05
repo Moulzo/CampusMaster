@@ -340,20 +340,16 @@ export class SubmissionsService {
 
     // ✅ Déclencher notification "devoir corrigé"
     try {
-      await this.notificationsService.createNotification(
-        updatedSubmission.student.id,
-        '📊 Devoir corrigé',
-        `Ton devoir "${updatedSubmission.assignment.title}" a été corrigé : ${updatedSubmission.score}/${maxScore}`,
-        'NEW_GRADE',
-        {
-          assignmentId: updatedSubmission.assignment.id,
-          metadata: {
-            courseId: updatedSubmission.assignment.course.id,
-            score: updatedSubmission.score,
-            maxScore,
-          },
-        },
-      );
+      if (updatedSubmission.score !== null) {
+        await this.notificationsService.notifyNewGrade(
+          updatedSubmission.student.id,
+          updatedSubmission.assignment.title,
+          updatedSubmission.score,
+          maxScore,
+          updatedSubmission.assignment.course.id,
+          updatedSubmission.assignment.id,
+        );
+      }
     } catch (e) {
       // Log uniquement - ne pas casser la logique métier
       console.error('Failed to send grade notification:', e);
