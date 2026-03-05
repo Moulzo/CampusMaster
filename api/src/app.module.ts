@@ -18,6 +18,7 @@ import { AcademicsModule } from './academics/academics.module';
 import { StudentModule } from './student/student.module';
 import { TeacherModule } from './teacher/teacher.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
+import { DiscussionsModule } from './discussions/discussions.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { AnnouncementsModule } from './announcements/announcements.module';
     StudentModule,
     TeacherModule,
     AnnouncementsModule,
+    DiscussionsModule,
     ConfigModule.forRoot({ isGlobal: true }),
   ],
   controllers: [AppController],

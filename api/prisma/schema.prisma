@@ -52,6 +52,10 @@ model User {
 
   // Annonces créées par l'utilisateur
   announcements      Announcement[] @relation("AnnouncementAuthor")
+  
+  // Discussions créées par l'utilisateur
+  discussionThreads DiscussionThread[]
+  discussionMessages DiscussionMessage[]
 
   // ✅ Cours où l'user est prof (many-to-many)
   teachingCourses     Course[]      @relation("CourseTeachers")
@@ -103,6 +107,9 @@ model Course {
 
   // Annonces du cours
   announcements      Announcement[] @relation("CourseAnnouncements")
+  
+  // Discussions du cours
+  discussionThreads DiscussionThread[]
 
   assignments        Assignment[]
   courseResources    CourseResource[]
@@ -230,5 +237,41 @@ model Announcement {
   updatedAt DateTime @updatedAt
 
   @@index([courseId])
+  @@index([authorId])
+}
+
+model DiscussionThread {
+  id        String   @id @default(cuid())
+  title     String
+  
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId  String
+
+  createdBy User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  createdById String
+
+  messages  DiscussionMessage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([courseId])
+  @@index([createdById])
+}
+
+model DiscussionMessage {
+  id        String   @id @default(cuid())
+  content   String
+
+  thread    DiscussionThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  threadId  String
+
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId  String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([threadId])
   @@index([authorId])
 }

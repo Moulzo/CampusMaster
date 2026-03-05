@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { getCourse } from "@/lib/courses";
 import { CourseResourcesPanel } from "@/components/course-resources/CourseResourcesPanel";
@@ -9,17 +9,30 @@ import { CourseAssignmentsTab } from "@/components/teacher/courses/CourseAssignm
 import { TeacherCourseStudentsTab } from "@/components/teacher/TeacherCourseStudentsTab";
 import { TeacherCourseGradesTab } from "@/components/teacher/TeacherCourseGradesTab";
 import { TeacherCourseAnnouncementsTab } from "@/components/teacher/courses/TeacherCourseAnnouncementsTab";
+import { TeacherCourseDiscussionsTab } from "@/components/teacher/courses/TeacherCourseDiscussionsTab";
 
 export default function TeacherCourseDetailPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const courseId = params?.id;
+
+  const initialTab = searchParams.get("tab");
+  const [tab, setTab] = useState<
+    "resources" | "assignments" | "students" | "grades" | "announcements" | "discussions"
+  >(
+    initialTab === "assignments" ? "assignments"
+    : initialTab === "students" ? "students"
+    : initialTab === "grades" ? "grades"
+    : initialTab === "announcements" ? "announcements"
+    : initialTab === "discussions" ? "discussions"
+    : "resources"
+  );
 
   const [course, setCourse] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
-  const [tab, setTab] = useState<"resources" | "assignments" | "students" | "grades" | "announcements">("resources");
 
   useEffect(() => {
     if (authLoading) return;
@@ -144,6 +157,13 @@ export default function TeacherCourseDetailPage() {
         >
           Annonces
         </button>
+
+        <button
+          className={`pb-2 ${tab === "discussions" ? "text-blue-600 border-b-2 border-blue-600" : "text-zinc-600"}`}
+          onClick={() => setTab("discussions")}
+        >
+          Discussions
+        </button>
       </div>
 
       {/* Contenu des onglets */}
@@ -153,6 +173,7 @@ export default function TeacherCourseDetailPage() {
         {tab === "students" && <TeacherCourseStudentsTab courseId={courseId!} />}
         {tab === "grades" && <TeacherCourseGradesTab courseId={courseId!} />}
         {tab === "announcements" && <TeacherCourseAnnouncementsTab courseId={courseId!} />}
+        {tab === "discussions" && <TeacherCourseDiscussionsTab courseId={courseId!} />}
       </div>
     </div>
   );

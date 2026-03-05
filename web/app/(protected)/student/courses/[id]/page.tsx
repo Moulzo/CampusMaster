@@ -8,6 +8,7 @@ import { CourseResourcesPanel } from "@/components/course-resources/CourseResour
 import { StudentAssignmentsTab } from "@/components/student/courses/StudentAssignmentsTab";
 import StudentGradesTab from "@/components/student/StudentGradesTab";
 import { StudentCourseAnnouncementsTab } from "@/components/student/courses/StudentCourseAnnouncementsTab";
+import { CourseDiscussionsTab } from "@/components/student/courses/CourseDiscussionsTab";
 
 export default function StudentCourseDetailPage() {
   const { user, loading: authLoading } = useAuth();
@@ -21,8 +22,8 @@ export default function StudentCourseDetailPage() {
   const [course, setCourse] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"resources" | "assignments" | "grades" | "announcements">(
-    initialTab === "assignments" ? "assignments" : initialTab === "grades" ? "grades" : initialTab === "announcements" ? "announcements" : "resources"
+  const [tab, setTab] = useState<"resources" | "assignments" | "grades" | "announcements" | "discussions">(
+    initialTab === "assignments" ? "assignments" : initialTab === "grades" ? "grades" : initialTab === "announcements" ? "announcements" : initialTab === "discussions" ? "discussions" : "resources"
   );
 
   useEffect(() => {
@@ -108,6 +109,13 @@ export default function StudentCourseDetailPage() {
         >
           Annonces
         </button>
+
+        <button
+          className={`pb-2 ${tab === "discussions" ? "text-blue-600 border-b-2 border-blue-600" : "text-zinc-600"}`}
+          onClick={() => setTab("discussions")}
+        >
+          Discussions
+        </button>
       </div>
 
       {tab === "resources" && (
@@ -117,7 +125,10 @@ export default function StudentCourseDetailPage() {
       {tab === "assignments" && <StudentAssignmentsTab courseId={courseId!} />}
 
       {tab === "grades" && <StudentGradesTab courseId={courseId!} />}
+
       {tab === "announcements" && <StudentCourseAnnouncementsTab courseId={courseId!} />}
+
+      {tab === "discussions" && <CourseDiscussionsTab courseId={courseId!} />}
     </div>
   );
 }

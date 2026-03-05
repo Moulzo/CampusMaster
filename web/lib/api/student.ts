@@ -1,4 +1,4 @@
-import { apiGet } from "../api";
+import { apiFetchJson as apiGet } from "@/lib/auth";
 
 export type SemesterResultsDto = {
   semester: { 
