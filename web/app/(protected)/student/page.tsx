@@ -3,13 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { logout } from "@/lib/auth";
 import { getMySubjects, StudentSubject } from "@/lib/student-academics";
 import { Assignment, getAssignments } from "@/lib/assignments";
+import { useSemesterResults } from "@/hooks/use-semester-results";
 
 export default function StudentPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const { results: semesterResults } = useSemesterResults();
 
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string>("");
@@ -147,10 +150,11 @@ export default function StudentPage() {
     return String(assignmentsCount);
   }, [statsLoading, assignmentsCount]);
   const avgLabel = useMemo(() => {
-    if (statsLoading) return "…";
-    if (avgScore === null) return "--";
-    return avgScore.toFixed(1);
-  }, [statsLoading, avgScore]);
+    const semAvg = semesterResults
+      ? (semesterResults.overallAverage === null ? null : semesterResults.overallAverage)
+      : undefined; // undefined = en chargement
+    return semAvg === undefined ? "…" : semAvg === null ? "N/A" : semAvg.toFixed(1);
+  }, [semesterResults]);
 
   if (loading) return <p className="p-6">Chargement...</p>;
   if (!user) return null;
@@ -247,22 +251,30 @@ export default function StudentPage() {
 </div>
     </div>
 
-    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-      <span className="text-lg sm:text-xl">📋</span>
-    </div>
-  </div>
-</div>
-              <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 border border-slate-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-slate-500">Moyenne</p>
-                    <p className="text-2xl sm:text-3xl font-bold text-slate-900 mt-1">{avgLabel}</p>
-                  </div>
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                    <span className="text-lg sm:text-xl">📊</span>
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                    <span className="text-lg sm:text-xl">📋</span>
                   </div>
                 </div>
               </div>
+              <Link
+              href="/student/results"
+              className="block bg-white rounded-lg shadow-md p-4 sm:p-6 border border-slate-200 cursor-pointer hover:border-blue-300 hover:bg-blue-50 transition-colors"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-500">Moyenne semestrielle</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-slate-900 mt-1">
+                    {avgLabel}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {semesterResults?.semester.name || "Chargement..."}
+                  </p>
+                </div>
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <span className="text-lg sm:text-xl">📊</span>
+                </div>
+              </div>
+            </Link>
             </div>
 
             {/* My Subjects Section */}
