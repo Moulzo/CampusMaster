@@ -1,10 +1,14 @@
 import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { Role } from "@prisma/client";
+import { NotificationsGateway } from "../websockets/notifications.gateway";
 
 @Injectable()
 export class DiscussionsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notificationsGateway: NotificationsGateway,
+  ) {}
 
   private async assertCanAccessCourse(courseId: string, user: { id: string; role: Role }) {
     if (user.role === "ADMIN") return;
@@ -136,6 +140,7 @@ export class DiscussionsService {
       },
       select: {
         id: true,
+        threadId: true,
         content: true,
         createdAt: true,
         updatedAt: true,
@@ -149,6 +154,9 @@ export class DiscussionsService {
       data: { updatedAt: new Date() },
       select: { id: true },
     });
+
+    // Émettre le nouveau message en temps réel
+    this.notificationsGateway.emitDiscussionMessage(threadId, msg);
 
     return msg;
   }

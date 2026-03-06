@@ -157,6 +157,10 @@ class WebSocketService {
   isConnected(): boolean {
     return this.socket?.connected || false;
   }
+
+  getSocket(): Socket | null {
+    return this.socket;
+  }
 }
 
 export const websocketService = new WebSocketService();

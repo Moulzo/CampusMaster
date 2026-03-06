@@ -12,6 +12,7 @@ import { Server, Socket } from 'socket.io';
 import { Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { WebSocketService } from './websocket-simple.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -32,6 +33,7 @@ export class NotificationsGateway implements OnGatewayInit, OnGatewayConnection,
   constructor(
     private jwtService: JwtService,
     private webSocketService: WebSocketService,
+    private prisma: PrismaService,
   ) {}
 
   afterInit(server: Server) {
@@ -184,5 +186,123 @@ export class NotificationsGateway implements OnGatewayInit, OnGatewayConnection,
   // Méthode pour envoyer à tous les utilisateurs connectés
   async sendBroadcastNotification(notification: any) {
     this.webSocketService.broadcast('notification:new', notification);
+  }
+
+  // Helpers pour les discussions
+  private discussionRoom(threadId: string) {
+    return `discussion:${threadId}`;
+  }
+
+  private async canAccessCourse(courseId: string, userId: string, role?: string) {
+    if (!userId) return false;
+    if (role === 'ADMIN') return true;
+
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      select: {
+        id: true,
+        learningModuleId: true,
+        teachers: { select: { id: true } },
+        students: { select: { id: true } },
+      },
+    });
+
+    if (!course) return false;
+
+    if (role === 'TEACHER') {
+      return course.teachers.some((t) => t.id === userId);
+    }
+
+    if (role === 'STUDENT') {
+      const student = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { learningModuleId: true },
+      });
+
+      const isEnrolled = course.students.some((s) => s.id === userId);
+      const sameModule =
+        !!student?.learningModuleId &&
+        !!course.learningModuleId &&
+        student.learningModuleId === course.learningModuleId;
+
+      return isEnrolled || sameModule;
+    }
+
+    return false;
+  }
+
+  @SubscribeMessage('discussion:join')
+  async handleDiscussionJoin(
+    @MessageBody() data: { threadId: string },
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    if (!client.userId) return { success: false, error: 'Not authenticated' };
+
+    const thread = await this.prisma.discussionThread.findUnique({
+      where: { id: data.threadId },
+      select: { id: true, courseId: true },
+    });
+    if (!thread) return { success: false, error: 'Thread not found' };
+
+    const ok = await this.canAccessCourse(thread.courseId, client.userId, client.userRole);
+    if (!ok) return { success: false, error: 'Forbidden' };
+
+    client.join(this.discussionRoom(data.threadId));
+    this.logger.log(`[${client.id}] Joined discussion room ${data.threadId}`);
+    return { success: true };
+  }
+
+  @SubscribeMessage('discussion:leave')
+  async handleDiscussionLeave(
+    @MessageBody() data: { threadId: string },
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    client.leave(this.discussionRoom(data.threadId));
+    this.logger.log(`[${client.id}] Left discussion room ${data.threadId}`);
+    return { success: true };
+  }
+
+  // Méthode d'émission pour les nouveaux messages
+  emitNewDiscussionMessage(threadId: string, msg: any) {
+    this.server.to(this.discussionRoom(threadId)).emit('discussion:new_message', msg);
+    this.logger.log(`📨 New message emitted to discussion ${threadId}`);
+  }
+
+  // Events pour les discussions
+  @SubscribeMessage('discussions:join')
+  async handleDiscussionsJoin(
+    @MessageBody() data: { threadId: string },
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    if (!client.userId) return { success: false, error: 'Not authenticated' };
+
+    const thread = await this.prisma.discussionThread.findUnique({
+      where: { id: data.threadId },
+      select: { courseId: true },
+    });
+    if (!thread) return { success: false, error: 'Thread not found' };
+
+    // Vérification d'accès
+    const hasAccess = await this.canAccessCourse(thread.courseId, client.userId, client.userRole);
+    if (!hasAccess) return { success: false, error: 'Forbidden' };
+
+    client.join(`thread:${data.threadId}`);
+    this.logger.log(`[${client.id}] Joined discussion room thread:${data.threadId}`);
+    return { success: true };
+  }
+
+  @SubscribeMessage('discussions:leave')
+  handleDiscussionsLeave(
+    @MessageBody() data: { threadId: string },
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    client.leave(`thread:${data.threadId}`);
+    this.logger.log(`[${client.id}] Left discussion room thread:${data.threadId}`);
+    return { success: true };
+  }
+
+  emitDiscussionMessage(threadId: string, msg: any) {
+    this.server.to(`thread:${threadId}`).emit('discussions:new-message', msg);
+    this.logger.log(`📨 Discussion message emitted to thread:${threadId}`);
   }
 }

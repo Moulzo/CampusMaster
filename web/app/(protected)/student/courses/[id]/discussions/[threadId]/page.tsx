@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter, useParams, usePathname } from "next/navigation";
 import { listThreadMessages, createThreadMessage, Message } from "@/lib/discussions";
+import { websocketService } from "@/lib/websocket";
 
 export default function ThreadMessagesPage() {
   const router = useRouter();
@@ -14,26 +15,132 @@ export default function ThreadMessagesPage() {
 
   const base = pathname.startsWith("/teacher") ? "/teacher" : "/student";
 
+  // Helper pour dédupliquer les messages
+  function upsertMessage(prev: Message[], msg: Message) {
+    if (prev.some(m => m.id === msg.id)) return prev;
+    return [...prev, msg];
+  }
+
+  // Refs pour le scroll conditionnel
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const shouldStickToBottomRef = useRef(true);
+
+  function isNearBottom(el: HTMLDivElement, threshold = 40) {
+    return el.scrollHeight - el.scrollTop - el.clientHeight <= threshold;
+  }
+
+  function scrollToBottom() {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [newMessage, setNewMessage] = useState("");
 
   useEffect(() => {
-    async function loadMessages() {
+    if (!threadId) return;
+
+    (async () => {
       try {
         setLoading(true);
+        setError("");
         const data = await listThreadMessages(threadId);
         setMessages(data);
-        setError("");
       } catch (e: any) {
         setError(e?.message ?? "Erreur chargement");
       } finally {
         setLoading(false);
       }
+    })();
+  }, [threadId]);
+
+  // Suivre la position de scroll de l'utilisateur
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    const handleScroll = () => {
+      shouldStickToBottomRef.current = isNearBottom(el);
+    };
+
+    handleScroll();
+    el.addEventListener("scroll", handleScroll);
+
+    return () => {
+      el.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
+
+  // Scroll initial au chargement
+  useLayoutEffect(() => {
+    scrollToBottom();
+  }, []);
+
+  // Scroll automatique si l'utilisateur était déjà en bas
+  useLayoutEffect(() => {
+    if (!messages.length) return;
+    if (!shouldStickToBottomRef.current) return;
+    scrollToBottom();
+  }, [messages]);
+
+  // WebSocket : join + listen
+  useEffect(() => {
+    console.log('[discussion] Page mounted, threadId:', threadId);
+    
+    if (!threadId) return;
+
+    const socket = websocketService.getSocket();
+    console.log('[discussion] Socket from service:', socket ? 'found' : 'null', 'connected:', socket?.connected);
+    
+    if (!socket) return;
+
+    const joinRoom = () => {
+      console.log('[discussion] joinRoom() called, threadId:', threadId, 'socket.connected:', socket.connected);
+      socket.emit('discussions:join', { threadId }, (ack?: any) => {
+        console.log('[discussion] join ACK received:', ack);
+      });
+    };
+
+    const onConnect = () => {
+      console.log('[discussion] socket.connect event fired, joining room');
+      joinRoom();
+    };
+
+    const onNewMessage = (msg: Message) => {
+      console.log('[discussion] discussions:new-message received:', msg);
+      if (msg.threadId !== threadId) {
+        console.log('[discussion] Ignoring message for different thread:', msg.threadId, 'current:', threadId);
+        return;
+      }
+      
+      // Mémoriser si l'utilisateur était en bas avant l'ajout
+      const el = scrollContainerRef.current;
+      if (el) {
+        shouldStickToBottomRef.current = isNearBottom(el);
+      }
+      
+      console.log('[discussion] Adding message to state');
+      setMessages((prev) => upsertMessage(prev, msg));
+    };
+
+    socket.on('connect', onConnect);
+    socket.on('discussions:new-message', onNewMessage);
+
+    if (socket.connected) {
+      console.log('[discussion] Socket already connected, joining room immediately');
+      joinRoom();
+    } else {
+      console.log('[discussion] Socket not yet connected, waiting for connect event');
     }
 
-    loadMessages();
+    return () => {
+      console.log('[discussion] Cleanup - leaving room and removing listeners');
+      socket.emit('discussions:leave', { threadId });
+      socket.off('connect', onConnect);
+      socket.off('discussions:new-message', onNewMessage);
+    };
   }, [threadId]);
 
   async function handleSendMessage(e: React.FormEvent) {
@@ -42,8 +149,14 @@ export default function ThreadMessagesPage() {
 
     try {
       const msg = await createThreadMessage(threadId, newMessage.trim());
-      const newMessages = [...messages, msg];
-      setMessages(newMessages);
+      
+      // Mémoriser si l'utilisateur était en bas avant l'ajout
+      const el = scrollContainerRef.current;
+      if (el) {
+        shouldStickToBottomRef.current = isNearBottom(el);
+      }
+      
+      setMessages(prev => upsertMessage(prev, msg));
       setNewMessage("");
     } catch (e: any) {
       setError(e?.message ?? "Erreur envoi");
@@ -85,7 +198,7 @@ export default function ThreadMessagesPage() {
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg">
-        <div className="max-h-96 overflow-y-auto p-4 space-y-4">
+        <div ref={scrollContainerRef} className="max-h-96 overflow-y-auto p-4 space-y-4">
           {messages.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               Aucun message pour le moment.
@@ -103,24 +216,18 @@ export default function ThreadMessagesPage() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-medium text-gray-900">{authorName}</span>
-                    <span className="text-sm text-gray-500">{authorRole}</span>
-                    <span className="text-sm text-gray-500">
-                      {new Date(message.createdAt).toLocaleDateString("fr-FR", {
-                        day: "numeric",
-                        month: "short",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
+                    <span className="text-xs text-gray-500">({authorRole})</span>
+                    <span className="text-xs text-gray-400">{new Date(message.createdAt).toLocaleString()}</span>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-gray-800 whitespace-pre-wrap">{message.content}</p>
+                  <div className="text-gray-700 bg-gray-50 rounded-lg p-3">
+                    {message.content}
                   </div>
                 </div>
               </div>
               );
             })
           )}
+          <div ref={bottomRef} />
         </div>
 
         <div className="border-t border-gray-200 p-4">
