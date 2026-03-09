@@ -24,12 +24,6 @@ export function NotificationPanel({ token }: NotificationPanelProps) {
   };
 
   function onOpenNotificationHandler(notification: AppNotification) {
-  console.log("[notif debug]", {
-    type: notification.type,
-    metadata: notification.metadata,
-    href: getNotificationHref(notification),
-  });
-  
   onOpenNotification(notification, (href: string) => {
     // Auto-lecture si non lue
     if (!notification.isRead) {

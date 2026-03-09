@@ -1,134 +1,107 @@
 import { io, Socket } from 'socket.io-client';
 
+type ConnectionListener = (connected: boolean) => void;
+
 class WebSocketService {
   private socket: Socket | null = null;
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private reconnectDelay = 1000;
   private currentToken: string | null = null;
+  private connectionListeners = new Set<ConnectionListener>();
 
   connect(token: string) {
-    // Sauvegarder le token pour les reconnexions
     this.currentToken = token;
 
-    if (this.socket?.connected) {
-      console.log('[WS] Déconnexion du socket existant avant nouvelle connexion');
-      this.socket.disconnect();
+    // Si un socket existe déjà avec le même token, on le réutilise
+    if (this.socket) {
+      const sameToken = (this.socket.auth as any)?.token === token;
+
+      if (sameToken) {
+        if (!this.socket.connected) {
+          this.socket.connect();
+        }
+        return this.socket;
+      }
+
+      // Token différent : on nettoie et on recrée
+      this.cleanupSocket();
     }
 
-    console.log('[WS] Connexion avec token:', token ? token.substring(0, 20) + '...' : 'No token');
-
     this.socket = io(process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3001', {
-      auth: {
-        token: token,
-      },
+      auth: { token },
       withCredentials: true,
       transports: ['polling', 'websocket'],
-      reconnection: false, // Désactiver la reconnexion auto de socket.io (on gère manuellement)
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     });
 
     this.setupEventListeners();
-  }
-
-  reconnectWithNewToken(token: string) {
-    console.log('[WS] Reconnexion avec nouveau token');
-    this.reconnectAttempts = 0;
-    this.connect(token);
+    return this.socket;
   }
 
   private setupEventListeners() {
     if (!this.socket) return;
 
     this.socket.on('connect', () => {
-      console.log('[WS] Connecté au serveur WebSocket');
-      this.reconnectAttempts = 0;
-    });
-
-    this.socket.on('authenticated', (data) => {
-      console.log('[WS] Authentifié:', data);
+      this.emitConnectionState(true);
     });
 
     this.socket.on('disconnect', (reason) => {
-      console.log('[WS] Déconnecté:', reason);
-      
-      // Ne pas se reconnecter si c'est une déconnexion volontaire
-      if (reason === 'io client disconnect') {
-        console.log('[WS] Déconnexion volontaire - pas de reconnexion');
-        return;
-      }
-
-      // Se reconnecter automatiquement pour les autres raisons
-      console.log('[WS] Tentative de reconnexion...');
-      this.handleReconnect();
+      this.emitConnectionState(false);
     });
 
     this.socket.on('connect_error', (error) => {
       console.error('[WS] Erreur de connexion:', error.message);
-      
-      // Ne pas se reconnecter si c'est une erreur d'authentification
-      if (error.message?.includes('Invalid token') || 
-          error.message?.includes('No token') ||
-          error.message?.includes('Invalid signature')) {
-        console.error('[WS] Erreur d\'authentification - arrêt des tentatives de reconnexion');
-        this.reconnectAttempts = this.maxReconnectAttempts; // Arrêter les tentatives
-        return;
-      }
-
-      // Pour les autres erreurs, tenter de se reconnecter
-      this.handleReconnect();
+      this.emitConnectionState(false);
     });
 
-    this.socket.on('error', (error) => {
-      console.error('[WS] Erreur WebSocket:', error);
+    // Selon la version/client, ces événements peuvent être émis par le manager.
+    this.socket.io.on('reconnect_attempt', (attempt) => {
+      // Tentative de reconnexion
+    });
+
+    this.socket.io.on('reconnect', (attempt) => {
+      this.emitConnectionState(true);
+    });
+
+    this.socket.io.on('reconnect_error', (error) => {
+      console.error('[WS] Erreur de reconnexion:', error);
     });
   }
 
-  private handleReconnect() {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('[WS] Nombre maximum de tentatives de reconnexion atteint');
-      return;
-    }
+  private cleanupSocket() {
+    if (!this.socket) return;
 
-    if (!this.currentToken) {
-      console.error('[WS] Pas de token disponible pour la reconnexion');
-      return;
-    }
-
-    this.reconnectAttempts++;
-    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
-    
-    console.log(`[WS] Reconnexion dans ${delay}ms (tentative ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-    
-    setTimeout(() => {
-      if (this.currentToken) {
-        this.connect(this.currentToken);
-      }
-    }, delay);
+    this.socket.removeAllListeners();
+    this.socket.io.removeAllListeners();
+    this.socket.disconnect();
+    this.socket = null;
   }
 
   disconnect() {
-    console.log('[WS] Déconnexion manuelle');
-    this.currentToken = null;
-    this.reconnectAttempts = 0;
-    
-    if (this.socket) {
-      this.socket.disconnect();
-      this.socket = null;
-    }
+    this.cleanupSocket();
+    this.emitConnectionState(false);
   }
 
   emit(event: string, data: any) {
     if (!this.socket) {
-      console.error('[WS] Impossible d\'émettre - socket non connecté');
       return;
     }
     
     this.socket.emit(event, data);
   }
 
-  on(event: string, callback: (...args: any[]) => void) {
+  on(event: string, handler: (...args: any[]) => void) {
+    this.socket?.on(event, handler);
+  }
+
+  off(event: string, handler?: (...args: any[]) => void) {
     if (!this.socket) return;
-    this.socket.on(event, callback);
+    if (handler) {
+      this.socket.off(event, handler);
+    } else {
+      this.socket.off(event);
+    }
   }
 
   onBroadcastNotification(callback: (notification: any) => void) {
@@ -149,17 +122,28 @@ class WebSocketService {
     this.socket.emit('notifications:delete', { notificationId });
   }
 
-  off(event: string, callback?: (...args: any[]) => void) {
-    if (!this.socket) return;
-    this.socket.off(event, callback);
-  }
-
   isConnected(): boolean {
-    return this.socket?.connected || false;
+    return !!this.socket?.connected;
   }
 
   getSocket(): Socket | null {
+    // On retourne le socket même s'il est momentanément déconnecté
     return this.socket;
+  }
+
+  subscribeConnection(listener: ConnectionListener) {
+    this.connectionListeners.add(listener);
+    listener(this.isConnected());
+
+    return () => {
+      this.connectionListeners.delete(listener);
+    };
+  }
+
+  private emitConnectionState(connected: boolean) {
+    for (const listener of this.connectionListeners) {
+      listener(connected);
+    }
   }
 }
 

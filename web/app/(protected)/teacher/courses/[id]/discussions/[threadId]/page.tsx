@@ -91,33 +91,21 @@ export default function TeacherThreadMessagesPage() {
 
   // WebSocket : join + listen
   useEffect(() => {
-    console.log('[discussion] Page mounted, threadId:', threadId);
-    
     if (!threadId) return;
 
     const socket = websocketService.getSocket();
-    console.log('[discussion] Socket from service:', socket ? 'found' : 'null', 'connected:', socket?.connected);
-    
     if (!socket) return;
 
     const joinRoom = () => {
-      console.log('[discussion] joinRoom() called, threadId:', threadId, 'socket.connected:', socket.connected);
-      socket.emit('discussions:join', { threadId }, (ack?: any) => {
-        console.log('[discussion] join ACK received:', ack);
-      });
+      socket.emit('discussions:join', { threadId });
     };
 
     const onConnect = () => {
-      console.log('[discussion] socket.connect event fired, joining room');
       joinRoom();
     };
 
     const onNewMessage = (msg: Message) => {
-      console.log('[discussion] discussions:new-message received:', msg);
-      if (msg.threadId !== threadId) {
-        console.log('[discussion] Ignoring message for different thread:', msg.threadId, 'current:', threadId);
-        return;
-      }
+      if (msg.threadId !== threadId) return;
       
       // Mémoriser si l'utilisateur était en bas avant l'ajout
       const el = scrollContainerRef.current;
@@ -125,7 +113,6 @@ export default function TeacherThreadMessagesPage() {
         shouldStickToBottomRef.current = isNearBottom(el);
       }
       
-      console.log('[discussion] Adding message to state');
       setMessages((prev) => upsertMessage(prev, msg));
     };
 
@@ -133,14 +120,10 @@ export default function TeacherThreadMessagesPage() {
     socket.on('discussions:new-message', onNewMessage);
 
     if (socket.connected) {
-      console.log('[discussion] Socket already connected, joining room immediately');
       joinRoom();
-    } else {
-      console.log('[discussion] Socket not yet connected, waiting for connect event');
     }
 
     return () => {
-      console.log('[discussion] Cleanup - leaving room and removing listeners');
       socket.emit('discussions:leave', { threadId });
       socket.off('connect', onConnect);
       socket.off('discussions:new-message', onNewMessage);
