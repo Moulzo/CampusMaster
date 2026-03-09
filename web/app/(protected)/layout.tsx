@@ -6,6 +6,7 @@ import { apiFetch, getRefreshToken, getAccessToken, AUTH_EVENT, clearTokens } fr
 import { AuthProvider, AuthUser } from "@/lib/auth-context";
 import { ToastProvider } from "@/lib/toast";
 import { NotificationPanel } from "@/components/notification-panel";
+import { AppShell } from "@/lib/app-shell";
 
 const API_URL = "http://localhost:3001/api";
 
@@ -134,16 +135,14 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   return (
     <AuthProvider user={user} loading={false}>
       <ToastProvider>
-        <div className="min-h-screen bg-slate-50">
-          {/* Notification Panel */}
+        <div className="h-screen bg-slate-50 overflow-hidden">
           {user && token && (
-            <div className="fixed top-4 right-4 z-50">
+            <div className="fixed top-4 right-4 z-[70]">
               <NotificationPanel token={token} />
             </div>
           )}
-          
-          {/* Main Content */}
-          {children}
+
+          <AppShell>{children}</AppShell>
         </div>
       </ToastProvider>
     </AuthProvider>
