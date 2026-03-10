@@ -28,6 +28,10 @@ export type CreateAdminUserDto = {
   password: string;
 };
 
+export type SetStudentModuleResult = AdminUser & {
+  warning?: string | null;
+};
+
 export function adminListUsers(role?: Role) {
   const params = new URLSearchParams();
   if (role) params.set("role", role);

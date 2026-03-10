@@ -1,4 +1,5 @@
 import { apiFetch } from './auth';
+import { SetStudentModuleResult } from './admin-users';
 
 // Helper pour une meilleure gestion des erreurs
 async function throwApiError(res: Response, fallback: string) {
@@ -279,7 +280,7 @@ export async function setStudentModule(studentId: string, learningModuleId: stri
     body: JSON.stringify({ learningModuleId }),
   });
   if (!res.ok) throw new Error('Failed to set student module');
-  return res.json() as Promise<Student>;
+  return res.json() as Promise<SetStudentModuleResult>;
 }
 
 // ✅ désaffecter un étudiant d'un module

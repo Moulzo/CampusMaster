@@ -142,14 +142,7 @@ export class AdminAnalyticsService {
     });
   }
 
-  // ✅ Évolution des moyennes par semestre
-  //
-  // IMPORTANT — logique historique :
-  // On ne se base PAS sur module.students (affectation courante) car quand un
-  // étudiant passe au S2, son learningModuleId change et il disparaît du S1.
-  // À la place, on considère que tout étudiant ayant soumis un devoir d'un
-  // cours rattaché à un module était éligible à ce module à l'époque.
-  // Cela garantit que les stats S1 restent correctes après le passage au S2.
+  // ✅ NOUVEAU : Évolution des moyennes par semestre
   async getGradesEvolution() {
     const semesters = await this.prisma.semester.findMany({
       select: {
@@ -160,12 +153,16 @@ export class AdminAnalyticsService {
           select: {
             id: true,
             name: true,
+            students: { select: { id: true } },
             subjects: {
               select: {
                 id: true,
+                title: true,
+                students: { select: { id: true } },
                 assignments: {
                   select: {
                     id: true,
+                    title: true,
                     dueDate: true,
                     maxScore: true,
                     submissions: {
@@ -173,6 +170,7 @@ export class AdminAnalyticsService {
                         studentId: true,
                         score: true,
                         submittedAt: true,
+                        correctedAt: true,
                       },
                     },
                   },
@@ -186,92 +184,82 @@ export class AdminAnalyticsService {
     });
 
     return semesters.map((semester) => {
-      const allScoredGrades: number[] = [];
+      // Agrégation de toutes les soumissions notées du semestre
+      const allScoredSubmissions: { score: number; studentId: string; assignmentId?: string }[] = [];
       let totalUncorrected = 0;
       let totalLate = 0;
-      let totalDelivered = 0;
       let totalExpected = 0;
+      let totalDelivered = 0;
 
       const moduleBreakdown = semester.learningModules.map((module) => {
-        const moduleScoredGrades: number[] = [];
+        const moduleEligibleStudents = new Set(module.students.map((s) => s.id));
+        const moduleScoredSubmissions: number[] = [];
         let moduleUncorrected = 0;
         let moduleLate = 0;
-        let moduleDelivered = 0;
-
-        // Étudiants uniques ayant soumis dans ce module = proxy historique fiable
-        const historicalStudentIds = new Set(
-          module.subjects.flatMap((course) =>
-            course.assignments.flatMap((a) => a.submissions.map((s) => s.studentId)),
-          ),
-        );
-        const historicalStudentCount = historicalStudentIds.size;
-
-        const totalAssignmentsInModule = module.subjects.reduce(
-          (sum, course) => sum + course.assignments.length,
-          0,
-        );
-
-        // Attendus = nb étudiants historiques × nb devoirs du module
-        const moduleExpected = historicalStudentCount * totalAssignmentsInModule;
 
         for (const course of module.subjects) {
-          for (const assignment of course.assignments) {
-            // Rendus uniques par devoir (dédupliqués par studentId)
-            const uniqueStudentsForAssignment = new Set(
-              assignment.submissions.map((s) => s.studentId),
-            );
-            moduleDelivered += uniqueStudentsForAssignment.size;
+          const eligibleIds =
+            moduleEligibleStudents.size > 0
+              ? moduleEligibleStudents
+              : new Set(course.students.map((s) => s.id));
 
-            for (const sub of assignment.submissions) {
+          const expectedForCourse = eligibleIds.size * course.assignments.length;
+          totalExpected += expectedForCourse;
+
+          for (const assignment of course.assignments) {
+            const eligibleSubs = assignment.submissions.filter(
+              (s) => s.studentId && eligibleIds.has(s.studentId),
+            );
+
+            // Rendus uniques
+            const uniqueKeys = new Set(eligibleSubs.map((s) => s.studentId));
+            totalDelivered += uniqueKeys.size;
+
+            for (const sub of eligibleSubs) {
+              // Retards
               if (sub.submittedAt > assignment.dueDate) {
                 totalLate++;
                 moduleLate++;
               }
+
+              // Non corrigés
               if (sub.score === null) {
                 totalUncorrected++;
                 moduleUncorrected++;
               } else {
-                // Normaliser sur 20 quel que soit le maxScore du devoir
+                // Normaliser sur 20
                 const normalized = (sub.score / assignment.maxScore) * 20;
-                moduleScoredGrades.push(normalized);
-                allScoredGrades.push(normalized);
+                moduleScoredSubmissions.push(normalized);
+                allScoredSubmissions.push({
+                  score: normalized,
+                  studentId: sub.studentId,
+                });
               }
             }
           }
         }
 
-        totalDelivered += moduleDelivered;
-        totalExpected += moduleExpected;
-
         const moduleAvg =
-          moduleScoredGrades.length > 0
+          moduleScoredSubmissions.length > 0
             ? Number(
-                (moduleScoredGrades.reduce((a, b) => a + b, 0) / moduleScoredGrades.length).toFixed(2),
+                (moduleScoredSubmissions.reduce((a, b) => a + b, 0) / moduleScoredSubmissions.length).toFixed(2),
               )
-            : null;
-
-        const moduleRate =
-          moduleExpected > 0
-            ? Number(((moduleDelivered / moduleExpected) * 100).toFixed(2))
             : null;
 
         return {
           moduleId: module.id,
           moduleName: module.name,
           averageGrade: moduleAvg,
-          gradedCount: moduleScoredGrades.length,
+          gradedCount: moduleScoredSubmissions.length,
           uncorrectedCount: moduleUncorrected,
           lateCount: moduleLate,
-          deliveredCount: moduleDelivered,
-          expectedCount: moduleExpected,
-          submissionRate: moduleRate,
         };
       });
 
       const semesterAvg =
-        allScoredGrades.length > 0
+        allScoredSubmissions.length > 0
           ? Number(
-              (allScoredGrades.reduce((a, b) => a + b, 0) / allScoredGrades.length).toFixed(2),
+              (allScoredSubmissions.reduce((sum, s) => sum + s.score, 0) / allScoredSubmissions.length).toFixed(2),
             )
           : null;
 
@@ -285,7 +273,7 @@ export class AdminAnalyticsService {
         semesterName: semester.name,
         averageGrade: semesterAvg,
         submissionRate,
-        totalGraded: allScoredGrades.length,
+        totalGraded: allScoredSubmissions.length,
         totalUncorrected,
         totalLate,
         totalExpected,

@@ -198,6 +198,12 @@ export default function AdminPage() {
                   >
                     <span>📖</span> Matières
                   </Link>
+                  <Link
+                    href="/admin/analytics"
+                    className="px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition flex items-center justify-center gap-2"
+                  >
+                    <span>📈</span> Statistiques
+                  </Link>
                 </div>
               </div>
 

@@ -290,8 +290,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Contenu mobile */}
-        <div className="lg:hidden">
-          <main className="px-4 sm:px-6 py-6">{children}</main>
+        <div className="lg:hidden h-[calc(100vh-57px)] overflow-y-auto">
+          <main className="px-4 sm:px-6 py-6">
+            {children}
+          </main>
         </div>
       </div>
     </div>

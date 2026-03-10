@@ -9,6 +9,7 @@ import {
   Student,
   LearningModule,
 } from "@/lib/admin-academics";
+import { SetStudentModuleResult } from "@/lib/admin-users";
 import { useToast } from "@/lib/toast";
 
 export default function AdminStudentsPage() {
@@ -22,7 +23,7 @@ export default function AdminStudentsPage() {
   const [moduleIdFilter, setModuleIdFilter] = useState<string>("");
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
-  const [bulkModuleId, setBulkModuleId] = useState<string>(""); // "" = aucun module
+  const [bulkModuleId, setBulkModuleId] = useState<string>("");
   const [bulkSaving, setBulkSaving] = useState(false);
 
   const moduleOptions = useMemo(() => {
@@ -31,47 +32,31 @@ export default function AdminStudentsPage() {
       label: m.semester ? `${m.semester.name} / ${m.name}` : m.name,
       semesterId: m.semesterId,
     }));
-
-    // tri sympa
     opts.sort((a, b) => a.label.localeCompare(b.label));
-
     return [{ id: "", label: "Aucun module", semesterId: "" }, ...opts];
   }, [modules]);
 
   const filteredStudents = useMemo(() => {
     const needle = q.trim().toLowerCase();
-
     return students.filter((s) => {
-      // Recherche textuelle
       const matchesText =
         !needle ||
         s.fullName.toLowerCase().includes(needle) ||
         s.email.toLowerCase().includes(needle);
-
-      // Filtre semestre
       const matchesSemester =
-        !semesterId ||
-        (s.learningModule?.semester?.id === semesterId) ||
-        false;
-
-      // Filtre module
-      // moduleIdFilter:
-      // "" => pas de filtre (tous)
-      // "__NONE__" => seulement ceux sans module
-      // sinon => moduleId exact
+        !semesterId || s.learningModule?.semester?.id === semesterId || false;
       const matchesModule =
         !moduleIdFilter ||
         (moduleIdFilter === "__NONE__"
           ? !s.learningModuleId
           : (s.learningModuleId ?? "") === moduleIdFilter);
-
       return matchesText && matchesSemester && matchesModule;
     });
   }, [students, q, semesterId, moduleIdFilter]);
 
   const selectedCount = useMemo(
     () => Object.values(selectedIds).filter(Boolean).length,
-    [selectedIds]
+    [selectedIds],
   );
 
   const allChecked = useMemo(() => {
@@ -103,14 +88,25 @@ export default function AdminStudentsPage() {
 
     setBulkSaving(true);
     try {
-      await Promise.all(
+      const results = await Promise.all(
         ids.map((studentId) =>
           bulkModuleId
             ? setStudentModule(studentId, bulkModuleId)
-            : unsetStudentModule(studentId)
-        )
+            : unsetStudentModule(studentId),
+        ),
       );
-      toast.push("success", "Affectation en masse effectuée");
+
+      // ✅ Compter les warnings reçus en masse
+      const warnings = results.filter((r): r is SetStudentModuleResult => 'warning' in r && r.warning !== null);
+      if (warnings.length > 0) {
+        toast.push(
+          "warning",
+          `Affectation effectuée. ${warnings.length} étudiant(s) avaient des soumissions dans leur ancien module — vérifiez les stats.`,
+        );
+      } else {
+        toast.push("success", "Affectation en masse effectuée");
+      }
+
       setSelectedIds({});
       await refresh();
     } catch (e: any) {
@@ -140,8 +136,14 @@ export default function AdminStudentsPage() {
   async function onSetModule(studentId: string, learningModuleId: string) {
     try {
       const updated = await setStudentModule(studentId, learningModuleId);
-      setStudents((prev) => prev.map((x) => (x.id === studentId ? updated : x)));
-      toast.push("success", "Étudiant affecté au module");
+      setStudents((prev) => prev.map((x) => (x.id === studentId ? { ...x, learningModuleId: updated.learningModuleId, learningModule: updated.learningModule } : x)));
+
+      // ✅ Afficher le warning si l'API en retourne un
+      if (updated.warning) {
+        toast.push("warning", updated.warning);
+      } else {
+        toast.push("success", "Étudiant affecté au module");
+      }
     } catch (e: any) {
       toast.push("error", e?.message ?? "Erreur");
     }
@@ -171,12 +173,14 @@ export default function AdminStudentsPage() {
     refresh();
   }, []);
 
-  const uniqueSemesters = Array.from(new Set(modules.map(m => m.semester?.id).filter(Boolean)));
-  const semesterOptions = uniqueSemesters.map((semesterId) => {
-    const semester = modules.find(m => m.semester?.id === semesterId);
+  const uniqueSemesters = Array.from(
+    new Set(modules.map((m) => m.semester?.id).filter(Boolean)),
+  );
+  const semesterOptions = uniqueSemesters.map((sid) => {
+    const mod = modules.find((m) => m.semester?.id === sid);
     return (
-      <option key={semesterId} value={semesterId}>
-        {semester?.name}
+      <option key={sid} value={sid}>
+        {mod?.semester?.name ?? sid}
       </option>
     );
   });
@@ -188,7 +192,9 @@ export default function AdminStudentsPage() {
           <h1 className="text-2xl font-bold">Étudiants</h1>
           <button
             className={`px-3 py-2 rounded border ${
-              bulkMode ? "bg-slate-900 text-white border-slate-900" : "hover:bg-slate-50"
+              bulkMode
+                ? "bg-slate-900 text-white border-slate-900"
+                : "hover:bg-slate-50"
             }`}
             onClick={() => {
               setBulkMode((v) => !v);
@@ -210,7 +216,6 @@ export default function AdminStudentsPage() {
             onChange={(e) => setQ(e.target.value)}
             className="border rounded px-3 py-2 w-full"
           />
-          
           <select
             value={semesterId}
             onChange={(e) => setSemesterId(e.target.value)}
@@ -219,7 +224,6 @@ export default function AdminStudentsPage() {
             <option value="">Tous les semestres</option>
             {semesterOptions}
           </select>
-
           <select
             value={moduleIdFilter}
             onChange={(e) => setModuleIdFilter(e.target.value)}
@@ -228,14 +232,13 @@ export default function AdminStudentsPage() {
             <option value="">Tous les modules</option>
             <option value="__NONE__">Aucun module</option>
             {modules
-              .filter(m => !semesterId || m.semesterId === semesterId)
+              .filter((m) => !semesterId || m.semesterId === semesterId)
               .map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.semester ? `${m.semester.name} / ${m.name}` : m.name}
                 </option>
               ))}
           </select>
-
           <div className="flex items-center">
             {loading && <span className="text-sm text-slate-600">Chargement...</span>}
             {err && <span className="text-sm text-red-600">{err}</span>}
@@ -256,7 +259,6 @@ export default function AdminStudentsPage() {
                 {selectedCount} sélectionné{selectedCount > 1 ? "s" : ""}
               </span>
             </div>
-
             <div className="flex items-center gap-3">
               <select
                 className="border rounded px-3 py-2"
