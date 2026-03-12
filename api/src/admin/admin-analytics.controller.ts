@@ -35,4 +35,10 @@ export class AdminAnalyticsController {
   getWeeklyActivity() {
     return this.adminAnalyticsService.getWeeklyActivity();
   }
+
+  // ✅ NOUVEAU - KPI configurables
+  @Get('configurable-kpis')
+  getConfigurableKpis() {
+    return this.adminAnalyticsService.getConfigurableKpis();
+  }
 }

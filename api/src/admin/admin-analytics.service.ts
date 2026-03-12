@@ -479,4 +479,119 @@ export class AdminAnalyticsService {
         lateCount: bucket.lateCount,
       }));
   }
+
+  async getConfigurableKpis() {
+    const assignments = await this.prisma.assignment.findMany({
+      select: {
+        id: true,
+        dueDate: true,
+        maxScore: true,
+        course: {
+          select: {
+            learningModule: {
+              select: {
+                students: { select: { id: true } },
+                semester: {
+                  select: {
+                    startDate: true,
+                    endDate: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        submissions: {
+          select: {
+            studentId: true,
+            score: true,
+            submittedAt: true,
+          },
+        },
+      },
+    });
+
+    let expectedCount = 0;
+    let deliveredUniqueCount = 0;
+    let lateUniqueCount = 0;
+    let pendingCorrectionCount = 0;
+    let gradedCount = 0;
+    let successCount = 0;
+
+    for (const assignment of assignments) {
+      const semester = assignment.course.learningModule?.semester ?? null;
+      const current = semester ? this.isCurrent(semester) : false;
+
+      const eligibleStudentIds: Set<string> = current
+        ? new Set(assignment.course.learningModule?.students.map((s) => s.id) ?? [])
+        : new Set(assignment.submissions.map((s) => s.studentId));
+
+      expectedCount += eligibleStudentIds.size;
+
+      const grouped = new Map<
+        string,
+        Array<{ studentId: string; score: number | null; submittedAt: Date }>
+      >();
+
+      for (const sub of assignment.submissions) {
+        if (!eligibleStudentIds.has(sub.studentId)) continue;
+        if (!grouped.has(sub.studentId)) grouped.set(sub.studentId, []);
+        grouped.get(sub.studentId)!.push(sub);
+      }
+
+      for (const [, subs] of grouped) {
+        if (subs.length === 0) continue;
+
+        subs.sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime());
+        const latest = subs[0];
+
+        deliveredUniqueCount += 1;
+
+        if (latest.submittedAt > assignment.dueDate) {
+          lateUniqueCount += 1;
+        }
+
+        if (latest.score === null) {
+          pendingCorrectionCount += 1;
+        } else {
+          gradedCount += 1;
+          const normalized = (latest.score / assignment.maxScore) * 20;
+          if (normalized >= 10) {
+            successCount += 1;
+          }
+        }
+      }
+    }
+
+    const attendanceRate =
+      expectedCount > 0 ? Number(((deliveredUniqueCount / expectedCount) * 100).toFixed(2)) : null;
+
+    const lateRate =
+      deliveredUniqueCount > 0 ? Number(((lateUniqueCount / deliveredUniqueCount) * 100).toFixed(2)) : null;
+
+    const pendingCorrectionRate =
+      deliveredUniqueCount > 0
+        ? Number(((pendingCorrectionCount / deliveredUniqueCount) * 100).toFixed(2))
+        : null;
+
+    const successRate =
+      gradedCount > 0 ? Number(((successCount / gradedCount) * 100).toFixed(2)) : null;
+
+    return {
+      counts: {
+        expectedCount,
+        deliveredUniqueCount,
+        lateUniqueCount,
+        pendingCorrectionCount,
+        gradedCount,
+        successCount,
+      },
+      kpis: {
+        attendanceRate,
+        lateRate,
+        pendingCorrectionRate,
+        successRate,
+      },
+    };
+  }
 }
