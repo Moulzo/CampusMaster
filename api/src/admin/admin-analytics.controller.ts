@@ -29,4 +29,10 @@ export class AdminAnalyticsController {
   getGradesEvolution() {
     return this.adminAnalyticsService.getGradesEvolution();
   }
+
+  // ✅ NOUVEAU - Activité hebdomadaire
+  @Get('weekly-activity')
+  getWeeklyActivity() {
+    return this.adminAnalyticsService.getWeeklyActivity();
+  }
 }

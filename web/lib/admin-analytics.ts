@@ -45,6 +45,7 @@ export type ModuleBreakdown = {
 export type SemesterGradesEvolution = {
   semesterId: string;
   semesterName: string;
+  isCurrent: boolean;
   averageGrade: number | null;
   submissionRate: number | null;
   totalGraded: number;
@@ -53,6 +54,15 @@ export type SemesterGradesEvolution = {
   totalExpected: number;
   totalDelivered: number;
   moduleBreakdown: ModuleBreakdown[];
+};
+
+export type WeeklyActivityPoint = {
+  weekKey: string;
+  label: string;
+  submissionCount: number;
+  uniqueSubmissionCount: number;
+  gradedCount: number;
+  lateCount: number;
 };
 
 export async function getAdminAnalyticsOverview(): Promise<AdminAnalyticsOverview> {
@@ -66,4 +76,8 @@ export async function getAdminAnalyticsCourses(): Promise<AdminCourseAnalytics[]
 // ✅ NOUVEAU
 export async function getAdminAnalyticsGradesEvolution(): Promise<SemesterGradesEvolution[]> {
   return apiFetchJson("/admin/analytics/grades-evolution");
+}
+
+export async function getAdminAnalyticsWeeklyActivity(): Promise<WeeklyActivityPoint[]> {
+  return apiFetchJson("/admin/analytics/weekly-activity");
 }

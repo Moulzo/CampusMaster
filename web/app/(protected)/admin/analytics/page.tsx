@@ -5,7 +5,9 @@ import Link from "next/link";
 import { RequireRole } from "@/lib/require-role";
 import {
   getAdminAnalyticsGradesEvolution,
+  getAdminAnalyticsWeeklyActivity,
   type SemesterGradesEvolution,
+  type WeeklyActivityPoint,
 } from "@/lib/admin-analytics";
 import {
   LineChart,
@@ -139,6 +141,7 @@ function ModuleCard({ module }: { module: SemesterGradesEvolution["moduleBreakdo
 
 export default function AdminAnalyticsPage() {
   const [data, setData] = useState<SemesterGradesEvolution[]>([]);
+  const [weeklyActivity, setWeeklyActivity] = useState<WeeklyActivityPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedSemester, setSelectedSemester] = useState<string | null>(null);
@@ -148,17 +151,25 @@ export default function AdminAnalyticsPage() {
     (async () => {
       try {
         setLoading(true);
-        const result = await getAdminAnalyticsGradesEvolution();
+        const [gradesEvolution, weekly] = await Promise.all([
+          getAdminAnalyticsGradesEvolution(),
+          getAdminAnalyticsWeeklyActivity(),
+        ]);
         if (cancelled) return;
-        setData(result);
-        if (result.length > 0) setSelectedSemester(result[result.length - 1].semesterId);
+        setData(gradesEvolution);
+        setWeeklyActivity(weekly);
+        if (gradesEvolution.length > 0) {
+          setSelectedSemester(gradesEvolution[gradesEvolution.length - 1].semesterId);
+        }
       } catch (e: any) {
         if (!cancelled) setError(e?.message ?? "Erreur de chargement.");
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const lineChartData = useMemo(
@@ -318,6 +329,39 @@ export default function AdminAnalyticsPage() {
                         activeDot={{ r: 6 }}
                       />
                     </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </section>
+
+              {/* ── Activité hebdomadaire des dépôts ── */}
+              <section className="bg-white rounded-lg shadow-md border border-slate-200 p-6">
+                <h2 className="text-base font-bold text-slate-900 mb-1">
+                  Activité hebdomadaire des dépôts
+                </h2>
+                <p className="text-sm text-slate-500 mb-6">
+                  Volume de dépôts, rendus uniques, corrections et retards par semaine
+                </p>
+
+                {weeklyActivity.length === 0 ? (
+                  <div className="text-sm text-slate-400 py-8 text-center">
+                    Aucune activité hebdomadaire disponible.
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart
+                      data={weeklyActivity}
+                      margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="label" tick={{ fill: "#94a3b8", fontSize: 12 }} />
+                      <YAxis tick={{ fill: "#94a3b8", fontSize: 12 }} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Legend wrapperStyle={{ color: "#64748b", fontSize: 12 }} />
+                      <Bar dataKey="submissionCount" name="Dépôts" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="uniqueSubmissionCount" name="Rendus uniques" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="gradedCount" name="Corrigés" fill="#9333ea" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="lateCount" name="Retards" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                    </BarChart>
                   </ResponsiveContainer>
                 )}
               </section>

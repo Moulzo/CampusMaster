@@ -352,4 +352,131 @@ export class AdminAnalyticsService {
       };
     });
   }
+
+  async getWeeklyActivity() {
+    const assignments = await this.prisma.assignment.findMany({
+      select: {
+        id: true,
+        dueDate: true,
+        course: {
+          select: {
+            id: true,
+            title: true,
+            learningModule: {
+              select: {
+                id: true,
+                name: true,
+                students: { select: { id: true } },
+                semester: {
+                  select: {
+                    id: true,
+                    name: true,
+                    startDate: true,
+                    endDate: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        submissions: {
+          select: {
+            id: true,
+            studentId: true,
+            score: true,
+            submittedAt: true,
+          },
+        },
+      },
+      orderBy: { dueDate: 'asc' },
+    });
+
+    type WeekBucket = {
+      weekKey: string;
+      label: string;
+      submissionCount: number;
+      uniqueSubmissionCount: number;
+      gradedCount: number;
+      lateCount: number;
+      uniqueKeys: Set<string>;
+    };
+
+    const buckets = new Map<string, WeekBucket>();
+
+    const getWeekStart = (date: Date) => {
+      const d = new Date(date);
+      d.setHours(0, 0, 0, 0);
+      const day = d.getDay();
+      const diff = day === 0 ? -6 : 1 - day; // lundi = début de semaine
+      d.setDate(d.getDate() + diff);
+      return d;
+    };
+
+    const toWeekKey = (date: Date) => {
+      const start = getWeekStart(date);
+      return start.toISOString().slice(0, 10);
+    };
+
+    const toWeekLabel = (date: Date) => {
+      const start = getWeekStart(date);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+      return `${start.toLocaleDateString('fr-FR')} - ${end.toLocaleDateString('fr-FR')}`;
+    };
+
+    for (const assignment of assignments) {
+      const semester = assignment.course.learningModule?.semester ?? null;
+      const current = semester ? this.isCurrent(semester) : false;
+
+      const eligibleStudentIds: Set<string> = current
+        ? new Set(assignment.course.learningModule?.students.map((s) => s.id) ?? [])
+        : new Set(assignment.submissions.map((s) => s.studentId));
+
+      const eligibleSubs = assignment.submissions.filter((s) =>
+        eligibleStudentIds.has(s.studentId),
+      );
+
+      for (const sub of eligibleSubs) {
+        const submittedAt = sub.submittedAt;
+        const weekKey = toWeekKey(submittedAt);
+        const uniqueKey = `${assignment.id}:${sub.studentId}`;
+
+        if (!buckets.has(weekKey)) {
+          buckets.set(weekKey, {
+            weekKey,
+            label: toWeekLabel(submittedAt),
+            submissionCount: 0,
+            uniqueSubmissionCount: 0,
+            gradedCount: 0,
+            lateCount: 0,
+            uniqueKeys: new Set(),
+          });
+        }
+
+        const bucket = buckets.get(weekKey)!;
+        bucket.submissionCount += 1;
+
+        if (sub.score !== null) {
+          bucket.gradedCount += 1;
+        }
+
+        if (sub.submittedAt > assignment.dueDate) {
+          bucket.lateCount += 1;
+        }
+
+        bucket.uniqueKeys.add(uniqueKey);
+      }
+    }
+
+    return Array.from(buckets.values())
+      .sort((a, b) => a.weekKey.localeCompare(b.weekKey))
+      .map((bucket) => ({
+        weekKey: bucket.weekKey,
+        label: bucket.label,
+        submissionCount: bucket.submissionCount,
+        uniqueSubmissionCount: bucket.uniqueKeys.size,
+        gradedCount: bucket.gradedCount,
+        lateCount: bucket.lateCount,
+      }));
+  }
 }
