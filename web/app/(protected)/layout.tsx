@@ -60,8 +60,6 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
       if (res.status === 401) {
         // Session expirée
         clearTokens("expired");
-        setUser(null);
-        setLoading(false);
         return;
       }
 
@@ -73,7 +71,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
       }
 
       const data = await res.json();
-      setUser(data?.user ?? null);
+      setUser(data ?? null);
       setToken(getAccessToken());
       setLoading(false);
     } catch (e: any) {

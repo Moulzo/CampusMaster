@@ -4,6 +4,8 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 import { CoursesModule } from './courses/courses.module';
 import { AssignmentsModule } from './assignments/assignments.module';
 import { SubmissionsModule } from './submissions/submissions.module';
@@ -23,6 +25,19 @@ import { DiscussionsModule } from './discussions/discussions.module';
 @Module({
   imports: [
     ScheduleModule.forRoot(),
+    ConfigModule.forRoot({ isGlobal: true }),
+
+    // ✅ Rate limiting global
+    // Règles (cumulatives) :
+    //   - "short"  : max 20 requêtes / 1 seconde   → protection burst
+    //   - "medium" : max 100 requêtes / 10 secondes → protection spam
+    //   - "long"   : max 500 requêtes / 1 minute    → protection DDoS léger
+    ThrottlerModule.forRoot([
+      { name: 'short',  ttl: 1000,  limit: 20  },
+      { name: 'medium', ttl: 10000, limit: 100 },
+      { name: 'long',   ttl: 60000, limit: 500 },
+    ]),
+
     AuthModule,
     CoursesModule,
     AssignmentsModule,
@@ -39,9 +54,15 @@ import { DiscussionsModule } from './discussions/discussions.module';
     TeacherModule,
     AnnouncementsModule,
     DiscussionsModule,
-    ConfigModule.forRoot({ isGlobal: true }),
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    // ✅ Applique ThrottlerGuard globalement sur toutes les routes
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}

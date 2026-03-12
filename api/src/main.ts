@@ -3,7 +3,7 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { IoAdapter } from "@nestjs/platform-socket.io";
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import * as express from 'express';
 import * as fs from 'fs';
 import { join, basename } from 'path';
@@ -11,18 +11,15 @@ import { join, basename } from 'path';
 // Servir les fichiers statiques pour les uploads
 function serveStaticFiles(app: NestExpressApplication) {
   const uploadsDir = join(process.cwd(), 'uploads');
-  
-  // Créer le middleware static personnalisé
   const staticMiddleware = express.static(uploadsDir);
-  
+
   app.use('/uploads', (req, res, next) => {
     const filePath = join(uploadsDir, req.path.replace('/uploads', ''));
-    
+
     if (!fs.existsSync(filePath)) {
       return res.status(404).send('File not found');
     }
-    
-    // Récupérer le nom original depuis le mapping
+
     const filename = basename(filePath);
     const mappingPath = join(uploadsDir, 'filenames.json');
     try {
@@ -30,14 +27,16 @@ function serveStaticFiles(app: NestExpressApplication) {
         const mappings = JSON.parse(fs.readFileSync(mappingPath, 'utf-8'));
         const originalName = mappings[filename];
         if (originalName) {
-          res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(originalName)}"`);
+          res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="${encodeURIComponent(originalName)}"`,
+          );
         }
       }
     } catch {
-      // Ignorer les erreurs
+      // Ignorer les erreurs de mapping
     }
-    
-    // Servir le fichier avec le middleware static
+
     return staticMiddleware(req, res, next);
   });
 }
@@ -49,23 +48,36 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api');
 
-  // Servir les fichiers statiques pour les uploads
+  // Validation globale des DTOs
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,          // supprime les champs non déclarés dans les DTOs
+      forbidNonWhitelisted: false,
+    }),
+  );
+
   serveStaticFiles(app);
 
   app.enableCors({
-    origin: 'http://localhost:3000',
+    origin: process.env.FRONTEND_URL ?? 'http://localhost:3000',
     credentials: true,
   });
 
+  // ✅ Swagger / OpenAPI
   const config = new DocumentBuilder()
     .setTitle('CampusMaster API')
-    .setDescription('API du projet CampusMaster')
-    .setVersion('0.1')
+    .setDescription(
+      `API REST de la plateforme pédagogique CampusMaster.\n\n` +
+      `**Rate limiting** : 20 req/s · 100 req/10s · 500 req/min par IP.\n\n` +
+      `Les routes d'authentification (\`/auth/login\`, \`/auth/register\`) ont une limite renforcée via \`@Throttle\`.`,
+    )
+    .setVersion('1.0')
     .addBearerAuth(
       {
         type: 'http',
         scheme: 'bearer',
         bearerFormat: 'JWT',
+        description: 'Entrez votre access token JWT',
         in: 'header',
       },
       'access-token',
@@ -73,7 +85,11 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+  SwaggerModule.setup('api/docs', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true, // conserve le token entre les rechargements
+    },
+  });
 
   await app.listen(process.env.PORT ?? 3001);
 }

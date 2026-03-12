@@ -36,6 +36,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setMobileOpen(false);
   }, [pathname]);
 
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace("/login");
+    }
+  }, [loading, user, router]);
+
   const navItems = useMemo(() => {
     if (!user) return [];
     return getNavItems(user.role);
@@ -61,7 +67,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) {
-    router.replace("/login");
     return null;
   }
 

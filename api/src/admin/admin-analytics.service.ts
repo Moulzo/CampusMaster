@@ -2,67 +2,118 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Role } from '@prisma/client';
 
+// ─── Logique d'éligibilité ────────────────────────────────────────────────────
+//
+// Semestre COURANT (startDate <= today <= endDate) :
+//   → on utilise module.students (affectation courante, fiable)
+//   → permet de détecter les étudiants qui n'ont encore rien soumis
+//
+// Semestre PASSÉ (ou sans dates) :
+//   → on utilise les soumissions comme proxy historique
+//   → garantit que les stats restent correctes après réaffectation au semestre suivant
+//
+// ─────────────────────────────────────────────────────────────────────────────
+
 @Injectable()
 export class AdminAnalyticsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  // Détermine si un semestre est le semestre courant
+  private isCurrent(semester: { startDate: Date | null; endDate: Date | null }): boolean {
+    if (!semester.startDate || !semester.endDate) return false;
+    const now = new Date();
+    return semester.startDate <= now && now <= semester.endDate;
+  }
+
   async getOverview() {
-    const [students, teachers, courses, assignments, allSubmissions, expectedSubmissions, coursesData] =
-      await Promise.all([
-        this.prisma.user.count({ where: { role: Role.STUDENT } }),
-        this.prisma.user.count({ where: { role: Role.TEACHER } }),
-        this.prisma.course.count(),
-        this.prisma.assignment.count(),
-        this.prisma.submission.findMany({
-          select: { id: true, studentId: true, assignmentId: true, score: true },
-        }),
-        this.computeExpectedSubmissions(),
-        this.prisma.course.findMany({
+    const [students, teachers, courses, assignments] = await Promise.all([
+      this.prisma.user.count({ where: { role: Role.STUDENT } }),
+      this.prisma.user.count({ where: { role: Role.TEACHER } }),
+      this.prisma.course.count(),
+      this.prisma.assignment.count(),
+    ]);
+
+    // Récupérer tous les cours avec leurs infos de semestre
+    const coursesData = await this.prisma.course.findMany({
+      select: {
+        id: true,
+        learningModule: {
+          select: {
+            students: { select: { id: true } },
+            semester: {
+              select: { startDate: true, endDate: true },
+            },
+          },
+        },
+        assignments: {
           select: {
             id: true,
-            learningModule: { select: { students: { select: { id: true } } } },
-            students: { select: { id: true } },
-            assignments: { select: { id: true } },
+            maxScore: true,
+            submissions: {
+              select: { studentId: true, score: true },
+            },
           },
-        }),
-      ]);
+        },
+      },
+    });
 
-    const assignmentEligibleStudentMap = new Map<string, Set<string>>();
+    let totalExpected = 0;
+    let totalDelivered = 0;
+    let totalScore = 0;
+    let totalScored = 0;
+    let totalSubmissions = 0;
+
     for (const course of coursesData) {
-      const eligibleStudentIds = new Set(
-        (course.learningModule?.students ?? course.students).map((s) => s.id),
-      );
+      const semester = course.learningModule?.semester ?? null;
+      const current = semester ? this.isCurrent(semester) : false;
+
+      // Étudiants éligibles selon le type de semestre
+      const eligibleStudentIds: Set<string> = current
+        ? // Semestre courant → affectation courante
+          new Set(course.learningModule?.students.map((s) => s.id) ?? [])
+        : // Semestre passé → étudiants ayant soumis (proxy historique)
+          new Set(
+            course.assignments.flatMap((a) => a.submissions.map((s) => s.studentId)),
+          );
+
+      const assignmentCount = course.assignments.length;
+      totalExpected += eligibleStudentIds.size * assignmentCount;
+
       for (const assignment of course.assignments) {
-        assignmentEligibleStudentMap.set(assignment.id, eligibleStudentIds);
+        const eligibleSubs = assignment.submissions.filter((s) =>
+          eligibleStudentIds.has(s.studentId),
+        );
+
+        // Rendus uniques pour ce devoir
+        const uniqueStudents = new Set(eligibleSubs.map((s) => s.studentId));
+        totalDelivered += uniqueStudents.size;
+        totalSubmissions += eligibleSubs.length;
+
+        for (const sub of eligibleSubs) {
+          if (sub.score !== null) {
+            totalScore += (sub.score / assignment.maxScore) * 20;
+            totalScored++;
+          }
+        }
       }
     }
 
-    const eligibleSubmissions = allSubmissions.filter((submission) => {
-      if (!submission.studentId) return false;
-      const eligible = assignmentEligibleStudentMap.get(submission.assignmentId);
-      return eligible?.has(submission.studentId) ?? false;
-    });
-
-    const uniqueSubmissionKeys = new Set(
-      eligibleSubmissions.map((s) => `${s.assignmentId}:${s.studentId}`),
-    );
-    const deliveredAssignmentCount = uniqueSubmissionKeys.size;
-
-    const scoredEligible = eligibleSubmissions.filter((s) => s.score !== null);
-    const totalScore = scoredEligible.reduce((sum, s) => sum + (s.score ?? 0), 0);
-    const globalAverage =
-      scoredEligible.length > 0
-        ? Number((totalScore / scoredEligible.length).toFixed(2))
-        : null;
-
     const submissionRate =
-      expectedSubmissions > 0
-        ? Number(((deliveredAssignmentCount / expectedSubmissions) * 100).toFixed(2))
+      totalExpected > 0
+        ? Number(((totalDelivered / totalExpected) * 100).toFixed(2))
         : null;
+
+    const globalAverage =
+      totalScored > 0 ? Number((totalScore / totalScored).toFixed(2)) : null;
 
     return {
-      totals: { students, teachers, courses, assignments, submissions: allSubmissions.length },
-      kpis: { expectedSubmissions, deliveredAssignments: deliveredAssignmentCount, submissionRate, globalAverage },
+      totals: { students, teachers, courses, assignments, submissions: totalSubmissions },
+      kpis: {
+        expectedSubmissions: totalExpected,
+        deliveredAssignments: totalDelivered,
+        submissionRate,
+        globalAverage,
+      },
     };
   }
 
@@ -76,15 +127,19 @@ export class AdminAnalyticsService {
           select: {
             id: true,
             name: true,
-            semester: { select: { id: true, name: true } },
             students: { select: { id: true } },
+            semester: {
+              select: { id: true, name: true, startDate: true, endDate: true },
+            },
           },
         },
-        students: { select: { id: true } },
         assignments: {
           select: {
             id: true,
-            submissions: { select: { id: true, studentId: true, score: true } },
+            maxScore: true,
+            submissions: {
+              select: { id: true, studentId: true, score: true },
+            },
           },
         },
       },
@@ -92,36 +147,47 @@ export class AdminAnalyticsService {
     });
 
     return courses.map((course) => {
-      const eligibleStudentIds = new Set(
-        (course.learningModule?.students ?? course.students).map((s) => s.id),
-      );
+      const semester = course.learningModule?.semester ?? null;
+      const current = semester ? this.isCurrent(semester) : false;
+
+      // Étudiants éligibles selon le type de semestre
+      const eligibleStudentIds: Set<string> = current
+        ? new Set(course.learningModule?.students.map((s) => s.id) ?? [])
+        : new Set(
+            course.assignments.flatMap((a) => a.submissions.map((s) => s.studentId)),
+          );
+
       const studentCount = eligibleStudentIds.size;
       const assignmentCount = course.assignments.length;
+      const expectedSubmissions = studentCount * assignmentCount;
 
       const allSubmissions = course.assignments.flatMap((a) =>
-        a.submissions.map((s) => ({ ...s, assignmentId: a.id })),
+        a.submissions
+          .filter((s) => eligibleStudentIds.has(s.studentId))
+          .map((s) => ({ ...s, assignmentId: a.id, maxScore: a.maxScore })),
       );
 
       const submissionCount = allSubmissions.length;
-      const eligibleSubmissions = allSubmissions.filter(
-        (s) => !!s.studentId && eligibleStudentIds.has(s.studentId),
-      );
 
-      const uniqueKeys = new Set(eligibleSubmissions.map((s) => `${s.assignmentId}:${s.studentId}`));
+      const uniqueKeys = new Set(
+        allSubmissions.map((s) => `${s.assignmentId}:${s.studentId}`),
+      );
       const deliveredAssignmentCount = uniqueKeys.size;
 
-      const scoredEligible = eligibleSubmissions.filter((s) => s.score !== null);
-      const averageScore =
-        scoredEligible.length > 0
-          ? Number(
-              (scoredEligible.reduce((sum, s) => sum + (s.score ?? 0), 0) / scoredEligible.length).toFixed(2),
-            )
-          : null;
-
-      const expectedSubmissions = studentCount * assignmentCount;
       const submissionRate =
         expectedSubmissions > 0
           ? Number(((deliveredAssignmentCount / expectedSubmissions) * 100).toFixed(2))
+          : null;
+
+      const scoredSubmissions = allSubmissions.filter((s) => s.score !== null);
+      const averageScore =
+        scoredSubmissions.length > 0
+          ? Number(
+              (
+                scoredSubmissions.reduce((sum, s) => sum + (s.score! / s.maxScore) * 20, 0) /
+                scoredSubmissions.length
+              ).toFixed(2),
+            )
           : null;
 
       return {
@@ -129,8 +195,9 @@ export class AdminAnalyticsService {
         courseTitle: course.title,
         learningModuleId: course.learningModuleId,
         learningModuleName: course.learningModule?.name ?? null,
-        semesterId: course.learningModule?.semester?.id ?? null,
-        semesterName: course.learningModule?.semester?.name ?? null,
+        semesterId: semester?.id ?? null,
+        semesterName: semester?.name ?? null,
+        isCurrent: current,
         studentCount,
         assignmentCount,
         submissionCount,
@@ -142,24 +209,18 @@ export class AdminAnalyticsService {
     });
   }
 
-  // ✅ Évolution des moyennes par semestre
-  //
-  // IMPORTANT — logique historique :
-  // On ne se base PAS sur module.students (affectation courante) car quand un
-  // étudiant passe au S2, son learningModuleId change et il disparaît du S1.
-  // À la place, on considère que tout étudiant ayant soumis un devoir d'un
-  // cours rattaché à un module était éligible à ce module à l'époque.
-  // Cela garantit que les stats S1 restent correctes après le passage au S2.
   async getGradesEvolution() {
     const semesters = await this.prisma.semester.findMany({
       select: {
         id: true,
         name: true,
         startDate: true,
+        endDate: true,
         learningModules: {
           select: {
             id: true,
             name: true,
+            students: { select: { id: true } },
             subjects: {
               select: {
                 id: true,
@@ -169,11 +230,7 @@ export class AdminAnalyticsService {
                     dueDate: true,
                     maxScore: true,
                     submissions: {
-                      select: {
-                        studentId: true,
-                        score: true,
-                        submittedAt: true,
-                      },
+                      select: { studentId: true, score: true, submittedAt: true },
                     },
                   },
                 },
@@ -186,6 +243,7 @@ export class AdminAnalyticsService {
     });
 
     return semesters.map((semester) => {
+      const current = this.isCurrent(semester);
       const allScoredGrades: number[] = [];
       let totalUncorrected = 0;
       let totalLate = 0;
@@ -198,31 +256,31 @@ export class AdminAnalyticsService {
         let moduleLate = 0;
         let moduleDelivered = 0;
 
-        // Étudiants uniques ayant soumis dans ce module = proxy historique fiable
-        const historicalStudentIds = new Set(
-          module.subjects.flatMap((course) =>
-            course.assignments.flatMap((a) => a.submissions.map((s) => s.studentId)),
-          ),
-        );
-        const historicalStudentCount = historicalStudentIds.size;
+        // Étudiants éligibles selon semestre courant ou passé
+        const eligibleStudentIds: Set<string> = current
+          ? new Set(module.students.map((s) => s.id))
+          : new Set(
+              module.subjects.flatMap((course) =>
+                course.assignments.flatMap((a) => a.submissions.map((s) => s.studentId)),
+              ),
+            );
 
         const totalAssignmentsInModule = module.subjects.reduce(
           (sum, course) => sum + course.assignments.length,
           0,
         );
-
-        // Attendus = nb étudiants historiques × nb devoirs du module
-        const moduleExpected = historicalStudentCount * totalAssignmentsInModule;
+        const moduleExpected = eligibleStudentIds.size * totalAssignmentsInModule;
 
         for (const course of module.subjects) {
           for (const assignment of course.assignments) {
-            // Rendus uniques par devoir (dédupliqués par studentId)
-            const uniqueStudentsForAssignment = new Set(
-              assignment.submissions.map((s) => s.studentId),
+            const eligibleSubs = assignment.submissions.filter((s) =>
+              eligibleStudentIds.has(s.studentId),
             );
-            moduleDelivered += uniqueStudentsForAssignment.size;
 
-            for (const sub of assignment.submissions) {
+            const uniqueStudents = new Set(eligibleSubs.map((s) => s.studentId));
+            moduleDelivered += uniqueStudents.size;
+
+            for (const sub of eligibleSubs) {
               if (sub.submittedAt > assignment.dueDate) {
                 totalLate++;
                 moduleLate++;
@@ -231,7 +289,6 @@ export class AdminAnalyticsService {
                 totalUncorrected++;
                 moduleUncorrected++;
               } else {
-                // Normaliser sur 20 quel que soit le maxScore du devoir
                 const normalized = (sub.score / assignment.maxScore) * 20;
                 moduleScoredGrades.push(normalized);
                 allScoredGrades.push(normalized);
@@ -283,6 +340,7 @@ export class AdminAnalyticsService {
       return {
         semesterId: semester.id,
         semesterName: semester.name,
+        isCurrent: current,
         averageGrade: semesterAvg,
         submissionRate,
         totalGraded: allScoredGrades.length,
@@ -293,21 +351,5 @@ export class AdminAnalyticsService {
         moduleBreakdown,
       };
     });
-  }
-
-  private async computeExpectedSubmissions(): Promise<number> {
-    const courses = await this.prisma.course.findMany({
-      select: {
-        learningModuleId: true,
-        learningModule: { select: { students: { select: { id: true } } } },
-        students: { select: { id: true } },
-        assignments: { select: { id: true } },
-      },
-    });
-
-    return courses.reduce((sum, course) => {
-      const studentCount = course.learningModule?.students.length ?? course.students.length;
-      return sum + studentCount * course.assignments.length;
-    }, 0);
   }
 }
