@@ -49,6 +49,7 @@ model User {
   submissions         Submission[]
   notifications       Notification[]
   courseResources     CourseResource[]
+  resourceDownloadEvents ResourceDownloadEvent[]
 
   // Annonces créées par l'utilisateur
   announcements      Announcement[] @relation("AnnouncementAuthor")
@@ -113,6 +114,7 @@ model Course {
 
   assignments        Assignment[]
   courseResources    CourseResource[]
+  resourceDownloadEvents ResourceDownloadEvent[]
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }
@@ -218,6 +220,8 @@ model CourseResource {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  downloadEvents ResourceDownloadEvent[]
+
   @@index([courseId])
   @@index([teacherId])
 }
@@ -274,4 +278,21 @@ model DiscussionMessage {
 
   @@index([threadId])
   @@index([authorId])
+}
+
+model ResourceDownloadEvent {
+  id           String   @id @default(cuid())
+  resourceId   String
+  courseId     String
+  userId       String
+  downloadedAt DateTime @default(now())
+
+  resource CourseResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  course   Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([resourceId])
+  @@index([courseId])
+  @@index([userId])
+  @@index([downloadedAt])
 }

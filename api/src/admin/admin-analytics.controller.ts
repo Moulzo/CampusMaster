@@ -47,4 +47,16 @@ export class AdminAnalyticsController {
   getConfigurableKpis() {
     return this.adminAnalyticsService.getConfigurableKpis();
   }
+
+  // ✅ NOUVEAU - Activité hebdomadaire des téléchargements
+  @Get('weekly-downloads')
+  @ApiOperation({ summary: 'Get weekly downloads analytics' })
+  @ApiQuery({ name: 'semesterId', required: false, type: String })
+  @ApiQuery({ name: 'moduleId', required: false, type: String })
+  getWeeklyDownloads(
+    @Query('semesterId') semesterId?: string,
+    @Query('moduleId') moduleId?: string,
+  ) {
+    return this.adminAnalyticsService.getWeeklyDownloads({ semesterId, moduleId });
+  }
 }

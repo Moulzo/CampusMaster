@@ -11,6 +11,7 @@ export type CourseResource = {
   mimeType: string;
   size: number;
   createdAt: string;
+  downloadCount: number;
 
   // ✅ API renvoie "uploadedBy"
   uploadedBy: UserLite | null;

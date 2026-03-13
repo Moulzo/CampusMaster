@@ -6,11 +6,11 @@ import { RequireRole } from "@/lib/require-role";
 import {
   getAdminAnalyticsOverview,
   getAdminAnalyticsGradesEvolution,
-  getAdminAnalyticsWeeklyActivity,
+  getAdminAnalyticsWeeklyDownloads,
   getAdminAnalyticsConfigurableKpis,
   type AdminAnalyticsOverview,
   type SemesterGradesEvolution,
-  type WeeklyActivityPoint,
+  type WeeklyDownloadsPoint,
   type AdminConfigurableKpis,
 } from "@/lib/admin-analytics";
 import { getSemesters, getLearningModules, type Semester, type LearningModule } from "@/lib/admin-academics";
@@ -155,7 +155,7 @@ function StatChip({
 
 export default function AdminAnalyticsPage() {
   const [data, setData] = useState<SemesterGradesEvolution[]>([]);
-  const [weeklyActivity, setWeeklyActivity] = useState<WeeklyActivityPoint[]>([]);
+  const [weeklyDownloads, setWeeklyDownloads] = useState<WeeklyDownloadsPoint[]>([]);
   const [configurableKpis, setConfigurableKpis] = useState<AdminConfigurableKpis | null>(null);
   const [overviewData, setOverviewData] = useState<AdminAnalyticsOverview | null>(null);
   const [semesters, setSemesters] = useState<Semester[]>([]);
@@ -165,7 +165,6 @@ export default function AdminAnalyticsPage() {
   const [weeklyLoading, setWeeklyLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const [weeklyView, setWeeklyView] = useState<"simple" | "detailed">("simple");
   const [weeklyRange, setWeeklyRange] = useState<"4" | "8" | "12" | "all">("8");
   const [weeklyExpanded, setWeeklyExpanded] = useState(false);
   const [semesterTrendExpanded, setSemesterTrendExpanded] = useState(true);
@@ -185,7 +184,7 @@ export default function AdminAnalyticsPage() {
           await Promise.all([
             getAdminAnalyticsOverview(),
             getAdminAnalyticsGradesEvolution(),
-            getAdminAnalyticsWeeklyActivity(),
+            getAdminAnalyticsWeeklyDownloads(),
             getAdminAnalyticsConfigurableKpis(),
             getSemesters(),
             getLearningModules(),
@@ -194,7 +193,7 @@ export default function AdminAnalyticsPage() {
         if (cancelled) return;
 
         setData(gradesEvolution);
-        setWeeklyActivity(weekly);
+        setWeeklyDownloads(weekly);
         setConfigurableKpis(configurable);
         setOverviewData(overview);
         setSemesters(semestersData);
@@ -217,13 +216,13 @@ export default function AdminAnalyticsPage() {
     (async () => {
       try {
         setWeeklyLoading(true);
-        const weekly = await getAdminAnalyticsWeeklyActivity({
+        const weekly = await getAdminAnalyticsWeeklyDownloads({
           semesterId: weeklySemesterId || undefined,
           moduleId: weeklyModuleId || undefined,
         });
-        if (!cancelled) setWeeklyActivity(weekly);
+        if (!cancelled) setWeeklyDownloads(weekly);
       } catch (e: any) {
-        if (!cancelled) setError(e?.message ?? "Erreur de chargement de l'activité hebdomadaire.");
+        if (!cancelled) setError(e?.message ?? "Erreur de chargement des téléchargements hebdomadaires.");
       } finally {
         if (!cancelled) setWeeklyLoading(false);
       }
@@ -249,11 +248,11 @@ export default function AdminAnalyticsPage() {
     [data],
   );
 
-  const filteredWeeklyActivity = useMemo(() => {
-    if (weeklyRange === "all") return weeklyActivity;
+  const filteredWeeklyDownloads = useMemo(() => {
+    if (weeklyRange === "all") return weeklyDownloads;
     const weeksToShow = parseInt(weeklyRange, 10);
-    return weeklyActivity.slice(-weeksToShow);
-  }, [weeklyActivity, weeklyRange]);
+    return weeklyDownloads.slice(-weeksToShow);
+  }, [weeklyDownloads, weeklyRange]);
 
   const globalKpis = useMemo(() => {
     return {
@@ -547,42 +546,15 @@ export default function AdminAnalyticsPage() {
 
               <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-md">
                 <SectionToggle
-                  title="Activité hebdomadaire des dépôts"
-                  subtitle={
-                    weeklyView === "simple"
-                      ? "Vue allégée : dépôts et retards par semaine"
-                      : "Vue détaillée : dépôts, rendus uniques, corrections et retards"
-                  }
+                  title="Activité hebdomadaire des téléchargements"
+                  subtitle="Suivi hebdomadaire des téléchargements de supports pédagogiques."
                   expanded={weeklyExpanded}
                   onToggle={() => setWeeklyExpanded((prev) => !prev)}
                 />
 
                 {weeklyExpanded && (
                   <>
-                    <div className="mb-6 grid grid-cols-1 gap-3 lg:grid-cols-4">
-                      <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
-                        <button
-                          onClick={() => setWeeklyView("simple")}
-                          className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                            weeklyView === "simple"
-                              ? "bg-white text-slate-900 shadow-sm"
-                              : "text-slate-500 hover:text-slate-700"
-                          }`}
-                        >
-                          Vue simple
-                        </button>
-                        <button
-                          onClick={() => setWeeklyView("detailed")}
-                          className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                            weeklyView === "detailed"
-                              ? "bg-white text-slate-900 shadow-sm"
-                              : "text-slate-500 hover:text-slate-700"
-                          }`}
-                        >
-                          Vue détaillée
-                        </button>
-                      </div>
-
+                    <div className="mb-6 grid grid-cols-1 gap-3 lg:grid-cols-3">
                       <select
                         value={weeklyRange}
                         onChange={(e) => setWeeklyRange(e.target.value as "4" | "8" | "12" | "all")}
@@ -627,56 +599,34 @@ export default function AdminAnalyticsPage() {
 
                     {weeklyLoading ? (
                       <div className="py-8 text-center text-sm text-slate-400">
-                        Chargement de l&apos;activité hebdomadaire...
+                        Chargement des téléchargements hebdomadaires...
                       </div>
-                    ) : filteredWeeklyActivity.length === 0 ? (
+                    ) : filteredWeeklyDownloads.length === 0 ? (
                       <div className="py-8 text-center text-sm text-slate-400">
                         Aucune activité hebdomadaire disponible.
                       </div>
                     ) : (
                       <ResponsiveContainer width="100%" height={280}>
-                        <BarChart
-                          data={filteredWeeklyActivity}
+                        <LineChart
+                          data={filteredWeeklyDownloads}
                           margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
                         >
                           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                           <XAxis dataKey="label" tick={{ fill: "#94a3b8", fontSize: 12 }} />
-                          <YAxis tick={{ fill: "#94a3b8", fontSize: 12 }} />
+                          <YAxis allowDecimals={false} tick={{ fill: "#94a3b8", fontSize: 12 }} />
                           <Tooltip content={<CustomTooltip />} />
                           <Legend wrapperStyle={{ color: "#64748b", fontSize: 12 }} />
 
-                          <Bar
-                            dataKey="submissionCount"
-                            name="Dépôts"
-                            fill="#3b82f6"
-                            radius={[4, 4, 0, 0]}
+                          <Line
+                            type="monotone"
+                            dataKey="downloadCount"
+                            name="Téléchargements"
+                            stroke="#3b82f6"
+                            strokeWidth={3}
+                            dot={{ r: 5, fill: "#3b82f6", strokeWidth: 2, stroke: "#fff" }}
+                            activeDot={{ r: 7 }}
                           />
-
-                          {weeklyView === "detailed" && (
-                            <Bar
-                              dataKey="uniqueSubmissionCount"
-                              name="Rendus uniques"
-                              fill="#22c55e"
-                              radius={[4, 4, 0, 0]}
-                            />
-                          )}
-
-                          {weeklyView === "detailed" && (
-                            <Bar
-                              dataKey="gradedCount"
-                              name="Corrigés"
-                              fill="#9333ea"
-                              radius={[4, 4, 0, 0]}
-                            />
-                          )}
-
-                          <Bar
-                            dataKey="lateCount"
-                            name="Retards"
-                            fill="#ef4444"
-                            radius={[4, 4, 0, 0]}
-                          />
-                        </BarChart>
+                        </LineChart>
                       </ResponsiveContainer>
                     )}
                   </>

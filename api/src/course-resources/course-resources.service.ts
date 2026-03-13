@@ -57,7 +57,12 @@ export class CourseResourcesService {
     const resources = await this.prisma.courseResource.findMany({
       where: { courseId },
       include: {
-        teacher: { select: { id: true, fullName: true, email: true } }, // uploader en DB
+        teacher: { select: { id: true, fullName: true, email: true } },
+        _count: {
+          select: {
+            downloadEvents: true,
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -71,6 +76,7 @@ export class CourseResourcesService {
       size: r.size,
       createdAt: r.createdAt,
       uploadedBy: r.teacher,
+      downloadCount: r._count.downloadEvents,
     }));
   }
 
@@ -171,5 +177,41 @@ export class CourseResourcesService {
     if (fs.existsSync(absPath)) fs.unlinkSync(absPath);
 
     return { ok: true };
+  }
+
+  async trackDownload(resourceId: string, courseId: string, userId: string) {
+    await this.prisma.resourceDownloadEvent.create({
+      data: {
+        resourceId,
+        courseId,
+        userId,
+      },
+    });
+  }
+
+  async getDownloadStats(resourceId: string) {
+    // Stats simples pour la V1 : total des téléchargements par ressource
+    const totalDownloads = await this.prisma.resourceDownloadEvent.count({
+      where: { resourceId }
+    });
+
+    // Téléchargements par jour (groupé par date sans heure)
+    const dailyStats = await this.prisma.$queryRaw`
+      SELECT 
+        DATE(downloaded_at) as date,
+        COUNT(*) as downloads
+      FROM resource_download_event 
+      WHERE resource_id = ${resourceId}
+      GROUP BY DATE(downloaded_at)
+      ORDER BY date DESC
+    ` as Array<{ date: Date; downloads: bigint }>;
+
+    return {
+      totalDownloads,
+      dailyStats: dailyStats.map(stat => ({
+        date: stat.date,
+        downloads: Number(stat.downloads)
+      }))
+    };
   }
 }

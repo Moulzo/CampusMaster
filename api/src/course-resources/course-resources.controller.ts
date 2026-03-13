@@ -124,6 +124,13 @@ export class CourseResourcesController {
       throw new BadRequestException("Fichier introuvable sur le serveur.");
     }
 
+    // Tracker le téléchargement (backend-driven, silencieux si erreur)
+    try {
+      await this.service.trackDownload(resource.id, resource.courseId, userId);
+    } catch (e) {
+      console.error("Erreur tracking téléchargement ressource", e);
+    }
+
     res.setHeader("Content-Type", resource.mimeType);
     res.setHeader("Content-Disposition", `attachment; filename="${resource.filename}"`);
     
