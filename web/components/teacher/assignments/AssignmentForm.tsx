@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getCourses } from "@/lib/courses";
 import { createAssignment, uploadFile } from "@/lib/assignments";
 import { useToast } from "@/lib/toast";
@@ -24,20 +24,26 @@ export function AssignmentForm({ defaultCourseId, onCreated }: Props) {
   const [error, setError] = useState("");
 
   // Charger les cours seulement si defaultCourseId n'est pas fourni
-  useState(() => {
+  useEffect(() => {
     if (!defaultCourseId) {
       getCourses().then(setCourses).catch(console.error);
     }
-  });
+  }, [defaultCourseId]);
 
-  async function handleCreateAssignment(e: React.FormEvent) {
-    e.preventDefault();
+  const handleCreateAssignment = async () => {
     if (!title.trim()) return;
     if (!dueDate) return;
     if (!formCourseId) {
       setError("Sélectionne un cours pour créer un devoir.");
       return;
     }
+
+    console.log("CREATE ASSIGNMENT", {
+      title,
+      dueDate,
+      formCourseId,
+      defaultCourseId,
+    });
 
     const ms = Number(maxScore);
     if (Number.isNaN(ms) || ms <= 0 || ms > 1000) {
@@ -50,7 +56,7 @@ export function AssignmentForm({ defaultCourseId, onCreated }: Props) {
     try {
       const created = await createAssignment(
         title,
-        description || null,
+        description || undefined,
         new Date(dueDate).toISOString(),
         formCourseId,
         {

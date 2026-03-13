@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   getStudents,
   getLearningModules,
@@ -133,32 +134,7 @@ export default function AdminStudentsPage() {
     }
   }
 
-  async function onSetModule(studentId: string, learningModuleId: string) {
-    try {
-      const updated = await setStudentModule(studentId, learningModuleId);
-      setStudents((prev) => prev.map((x) => (x.id === studentId ? { ...x, learningModuleId: updated.learningModuleId, learningModule: updated.learningModule } : x)));
-
-      // ✅ Afficher le warning si l'API en retourne un
-      if (updated.warning) {
-        toast.push("warning", updated.warning);
-      } else {
-        toast.push("success", "Étudiant affecté au module");
-      }
-    } catch (e: any) {
-      toast.push("error", e?.message ?? "Erreur");
-    }
-  }
-
-  async function onUnsetModule(studentId: string) {
-    try {
-      const updated = await unsetStudentModule(studentId);
-      setStudents((prev) => prev.map((x) => (x.id === studentId ? updated : x)));
-      toast.push("success", "Étudiant désaffecté du module");
-    } catch (e: any) {
-      toast.push("error", e?.message ?? "Erreur");
-    }
-  }
-
+  
   function getModuleInfo(student: Student) {
     const mod = student.learningModule;
     if (!mod) return "-";
@@ -168,10 +144,6 @@ export default function AdminStudentsPage() {
   useEffect(() => {
     refresh();
   }, [moduleIdFilter, q]);
-
-  useEffect(() => {
-    refresh();
-  }, []);
 
   const uniqueSemesters = Array.from(
     new Set(modules.map((m) => m.semester?.id).filter(Boolean)),
@@ -307,8 +279,7 @@ export default function AdminStudentsPage() {
                 <th className="text-left p-3">Étudiant</th>
                 <th className="text-left p-3">Email</th>
                 <th className="text-left p-3">Module actuel</th>
-                <th className="text-left p-3">Affecter à un module</th>
-                <th className="text-right p-3">Actions</th>
+                <th className="text-right p-3">Détail</th>
               </tr>
             </thead>
             <tbody>
@@ -324,40 +295,24 @@ export default function AdminStudentsPage() {
                       />
                     </td>
                   )}
-                  <td className="p-3 font-medium">{student.fullName}</td>
+                  <td className="p-3 font-medium">
+                    <Link
+                      href={`/admin/students/${student.id}`}
+                      className="text-blue-700 hover:underline"
+                    >
+                      {student.fullName}
+                    </Link>
+                  </td>
                   <td className="p-3">{student.email}</td>
                   <td className="p-3">{getModuleInfo(student)}</td>
                   <td className="p-3">
-                    <select
-                      className="border rounded px-2 py-1 text-sm w-full"
-                      value={student.learningModuleId || ""}
-                      onChange={async (e) => {
-                        const moduleId = e.target.value;
-                        if (moduleId) {
-                          await onSetModule(student.id, moduleId);
-                        } else {
-                          await onUnsetModule(student.id);
-                        }
-                      }}
-                    >
-                      <option value="">Aucun module</option>
-                      {modules.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.semester ? `${m.semester.name} / ${m.name}` : m.name}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="p-3">
                     <div className="flex justify-end">
-                      {student.learningModuleId && (
-                        <button
-                          className="px-3 py-1 rounded bg-red-100 text-red-700"
-                          onClick={() => onUnsetModule(student.id)}
-                        >
-                          Désaffecter
-                        </button>
-                      )}
+                      <Link
+                        href={`/admin/students/${student.id}`}
+                        className="px-3 py-1 rounded bg-slate-100 hover:bg-slate-200"
+                      >
+                        Voir
+                      </Link>
                     </div>
                   </td>
                 </tr>

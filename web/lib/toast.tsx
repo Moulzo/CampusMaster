@@ -2,7 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 
-type ToastType = "success" | "error" | "info";
+type ToastType = "success" | "error" | "info" | "warning";
 
 type ToastItem = {
   id: string;
@@ -50,6 +50,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               ? "bg-emerald-600"
               : t.type === "error"
               ? "bg-red-600"
+                : t.type === "warning"
+              ? "bg-amber-600"
               : "bg-slate-900";
           return (
             <div key={t.id} className={`${cls} text-white shadow-lg rounded-lg px-4 py-3 max-w-sm`}>

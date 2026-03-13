@@ -32,6 +32,31 @@ export type SetStudentModuleResult = AdminUser & {
   warning?: string | null;
 };
 
+export type AdminStudentAnalytics = {
+  student: {
+    id: string;
+    fullName: string;
+    email: string;
+  };
+  semesters: Array<{
+    semesterId: string;
+    semesterName: string;
+    averageGrade: number | null;
+    subjects: Array<{
+      subjectId: string;
+      subjectTitle: string;
+      averageGrade: number | null;
+      assignments: Array<{
+        assignmentId: string;
+        assignmentTitle: string;
+        grade: number;
+        submittedAt: string;
+        dueDate: string;
+      }>;
+    }>;
+  }>;
+};
+
 export function adminListUsers(role?: Role) {
   const params = new URLSearchParams();
   if (role) params.set("role", role);
@@ -56,6 +81,10 @@ export function adminUpdateUser(id: string, data: UpdateAdminUserDto) {
 export function adminDeleteUser(id: string) {
   // Swagger: DELETE /api/admin/users/{id}
   return apiFetchJson<void>(`/admin/users/${id}`, { method: "DELETE" });
+}
+
+export function adminGetStudentAnalytics(id: string) {
+  return apiFetchJson<AdminStudentAnalytics>(`/admin/students/${id}/analytics`);
 }
 
 export function adminCreateUser(data: CreateAdminUserDto) {

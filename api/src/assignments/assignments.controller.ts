@@ -9,6 +9,8 @@ import {
   UseGuards,
   Request,
   Query,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AssignmentsService } from './assignments.service';
@@ -26,6 +28,7 @@ export class AssignmentsController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @UsePipes(new ValidationPipe())
   @Roles('TEACHER')
   create(@Body() dto: CreateAssignmentDto, @Request() req: any) {
     const teacherId = req.user.id ?? req.user.sub;

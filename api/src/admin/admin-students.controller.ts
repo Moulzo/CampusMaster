@@ -29,9 +29,13 @@ export class AdminStudentsController {
   @Get(':id')
   @ApiOperation({ summary: 'Get student by ID' })
   async findOne(@Param('id') id: string) {
-    return this.adminStudentsService.findAll({}).then(students => 
-      students.find(s => s.id === id)
-    );
+    return this.adminStudentsService.findOne(id);
+  }
+
+  @Get(':id/analytics')
+  @ApiOperation({ summary: 'Get student analytics' })
+  async getAnalytics(@Param('id') id: string) {
+    return this.adminStudentsService.getStudentAnalytics(id);
   }
 
   @Put(':id/module')

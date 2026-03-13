@@ -162,7 +162,7 @@ export async function getAssignment(id: string): Promise<Assignment> {
 
 export async function createAssignment(
   title: string,
-  description: string | null,
+  description: string | undefined,
   dueDate: string,
   courseId: string,
   opts?: {
@@ -173,6 +173,14 @@ export async function createAssignment(
     attachmentMimeType?: string;
   }
 ): Promise<Assignment> {
+  console.log("createAssignment body", {
+    title,
+    description,
+    dueDate,
+    courseId,
+    ...(opts ?? {}),
+  });
+
   const res = await fetch(`${API_URL}/assignments`, {
     method: "POST",
     headers: {

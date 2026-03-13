@@ -9,6 +9,8 @@ import {
   Request,
   Query,
   NotFoundException,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { SubmissionsService } from './submissions.service';
@@ -51,6 +53,7 @@ export class SubmissionsController {
 
   @Post(':id/grade')
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @UsePipes(new ValidationPipe())
   @Roles('TEACHER')
   grade(
     @Param('id') id: string, 
@@ -67,6 +70,7 @@ export class SubmissionsController {
 
   @Post('assignment/:assignmentId/student/:studentId/grade')
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @UsePipes(new ValidationPipe())
   @Roles('TEACHER')
   async gradeWithoutSubmission(
     @Param('assignmentId') assignmentId: string,
