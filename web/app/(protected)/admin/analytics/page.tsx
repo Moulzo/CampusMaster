@@ -4,9 +4,11 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { RequireRole } from "@/lib/require-role";
 import {
+  getAdminAnalyticsOverview,
   getAdminAnalyticsGradesEvolution,
   getAdminAnalyticsWeeklyActivity,
   getAdminAnalyticsConfigurableKpis,
+  type AdminAnalyticsOverview,
   type SemesterGradesEvolution,
   type WeeklyActivityPoint,
   type AdminConfigurableKpis,
@@ -155,6 +157,7 @@ export default function AdminAnalyticsPage() {
   const [data, setData] = useState<SemesterGradesEvolution[]>([]);
   const [weeklyActivity, setWeeklyActivity] = useState<WeeklyActivityPoint[]>([]);
   const [configurableKpis, setConfigurableKpis] = useState<AdminConfigurableKpis | null>(null);
+  const [overviewData, setOverviewData] = useState<AdminAnalyticsOverview | null>(null);
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [modules, setModules] = useState<LearningModule[]>([]);
 
@@ -178,8 +181,9 @@ export default function AdminAnalyticsPage() {
       try {
         setLoading(true);
 
-        const [gradesEvolution, weekly, configurable, semestersData, modulesData] =
+        const [overview, gradesEvolution, weekly, configurable, semestersData, modulesData] =
           await Promise.all([
+            getAdminAnalyticsOverview(),
             getAdminAnalyticsGradesEvolution(),
             getAdminAnalyticsWeeklyActivity(),
             getAdminAnalyticsConfigurableKpis(),
@@ -192,6 +196,7 @@ export default function AdminAnalyticsPage() {
         setData(gradesEvolution);
         setWeeklyActivity(weekly);
         setConfigurableKpis(configurable);
+        setOverviewData(overview);
         setSemesters(semestersData);
         setModules(modulesData);
       } catch (e: any) {
@@ -251,31 +256,13 @@ export default function AdminAnalyticsPage() {
   }, [weeklyActivity, weeklyRange]);
 
   const globalKpis = useMemo(() => {
-    if (!data.length) return null;
-
-    const withGrade = data.filter((s) => s.averageGrade !== null);
-    const avgAll =
-      withGrade.length > 0
-        ? Number(
-            (
-              withGrade.reduce((sum, s) => sum + (s.averageGrade ?? 0), 0) /
-              withGrade.length
-            ).toFixed(2),
-          )
-        : null;
-
-    const totalLate = data.reduce((sum, s) => sum + s.totalLate, 0);
-    const totalUncorrected = data.reduce((sum, s) => sum + s.totalUncorrected, 0);
-    const totalDelivered = data.reduce((sum, s) => sum + s.totalDelivered, 0);
-    const totalExpected = data.reduce((sum, s) => sum + s.totalExpected, 0);
-
-    const globalRate =
-      totalExpected > 0
-        ? Number(((totalDelivered / totalExpected) * 100).toFixed(1))
-        : null;
-
-    return { avgAll, totalLate, totalUncorrected, globalRate };
-  }, [data]);
+    return {
+      avgAll: overviewData?.kpis?.globalAverage ?? null,
+      totalLate: configurableKpis?.counts?.lateUniqueCount ?? 0,
+      totalUncorrected: configurableKpis?.counts?.pendingCorrectionCount ?? 0,
+      globalRate: overviewData?.kpis?.submissionRate ?? null,
+    };
+  }, [overviewData, configurableKpis]);
 
   return (
     <RequireRole role="ADMIN">
