@@ -1,5 +1,5 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, UseGuards, Query } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { AdminAnalyticsService } from './admin-analytics.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -32,8 +32,14 @@ export class AdminAnalyticsController {
 
   // ✅ NOUVEAU - Activité hebdomadaire
   @Get('weekly-activity')
-  getWeeklyActivity() {
-    return this.adminAnalyticsService.getWeeklyActivity();
+  @ApiOperation({ summary: 'Get weekly activity analytics' })
+  @ApiQuery({ name: 'semesterId', required: false, type: String })
+  @ApiQuery({ name: 'moduleId', required: false, type: String })
+  getWeeklyActivity(
+    @Query('semesterId') semesterId?: string,
+    @Query('moduleId') moduleId?: string,
+  ) {
+    return this.adminAnalyticsService.getWeeklyActivity({ semesterId, moduleId });
   }
 
   // ✅ NOUVEAU - KPI configurables

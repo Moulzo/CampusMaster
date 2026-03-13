@@ -353,8 +353,26 @@ export class AdminAnalyticsService {
     });
   }
 
-  async getWeeklyActivity() {
+  async getWeeklyActivity(filters?: { semesterId?: string; moduleId?: string }) {
     const assignments = await this.prisma.assignment.findMany({
+      where: {
+        ...(filters?.moduleId
+          ? {
+              course: {
+                learningModuleId: filters.moduleId,
+              },
+            }
+          : {}),
+        ...(filters?.semesterId
+          ? {
+              course: {
+                learningModule: {
+                  semesterId: filters.semesterId,
+                },
+              },
+            }
+          : {}),
+      },
       select: {
         id: true,
         dueDate: true,

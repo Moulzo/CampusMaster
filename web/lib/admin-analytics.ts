@@ -40,6 +40,9 @@ export type ModuleBreakdown = {
   gradedCount: number;
   uncorrectedCount: number;
   lateCount: number;
+  deliveredCount: number;
+  expectedCount: number;
+  submissionRate: number | null;
 };
 
 export type SemesterGradesEvolution = {
@@ -65,6 +68,23 @@ export type WeeklyActivityPoint = {
   lateCount: number;
 };
 
+export type AdminConfigurableKpis = {
+  counts: {
+    expectedCount: number;
+    deliveredUniqueCount: number;
+    lateUniqueCount: number;
+    pendingCorrectionCount: number;
+    gradedCount: number;
+    successCount: number;
+  };
+  kpis: {
+    attendanceRate: number | null;
+    lateRate: number | null;
+    pendingCorrectionRate: number | null;
+    successRate: number | null;
+  };
+};
+
 export async function getAdminAnalyticsOverview(): Promise<AdminAnalyticsOverview> {
   return apiFetchJson("/admin/analytics/overview");
 }
@@ -78,6 +98,19 @@ export async function getAdminAnalyticsGradesEvolution(): Promise<SemesterGrades
   return apiFetchJson("/admin/analytics/grades-evolution");
 }
 
-export async function getAdminAnalyticsWeeklyActivity(): Promise<WeeklyActivityPoint[]> {
-  return apiFetchJson("/admin/analytics/weekly-activity");
+export async function getAdminAnalyticsWeeklyActivity(filters?: {
+  semesterId?: string;
+  moduleId?: string;
+}): Promise<WeeklyActivityPoint[]> {
+  const params = new URLSearchParams();
+
+  if (filters?.semesterId) params.append("semesterId", filters.semesterId);
+  if (filters?.moduleId) params.append("moduleId", filters.moduleId);
+
+  const query = params.toString();
+  return apiFetchJson(`/admin/analytics/weekly-activity${query ? `?${query}` : ""}`);
+}
+
+export async function getAdminAnalyticsConfigurableKpis(): Promise<AdminConfigurableKpis> {
+  return apiFetchJson("/admin/analytics/configurable-kpis");
 }
