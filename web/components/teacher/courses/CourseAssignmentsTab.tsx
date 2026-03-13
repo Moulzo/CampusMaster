@@ -35,6 +35,7 @@ export function CourseAssignmentsTab({ courseId }: { courseId: string }) {
   const [draftBySubmissionId, setDraftBySubmissionId] = useState<Record<string, { score: string; feedback: string }>>({});
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; title: string } | null>(null);
 
   async function refresh() {
     setLoading(true);
@@ -51,13 +52,22 @@ export function CourseAssignmentsTab({ courseId }: { courseId: string }) {
   }, [courseId]);
 
   async function onDelete(id: string) {
-    if (!confirm("Supprimer ce devoir ?")) return;
+    const assignment = assignments.find(a => a.id === id);
+    if (assignment) {
+      setDeleteConfirm({ id, title: assignment.title });
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deleteConfirm) return;
+    
     try {
-      await deleteAssignment(id);
+      await deleteAssignment(deleteConfirm.id);
       await refresh();
-      alert("Devoir supprimé ✅");
+      setDeleteConfirm(null);
     } catch (e: any) {
-      alert(e?.message ?? "Suppression impossible");
+      console.error("Suppression impossible:", e);
+      setDeleteConfirm(null);
     }
   }
 
@@ -306,6 +316,36 @@ export function CourseAssignmentsTab({ courseId }: { courseId: string }) {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Modal de confirmation de suppression */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">
+              Supprimer le devoir
+            </h3>
+            <p className="text-slate-600 mb-6">
+              Es-tu sûr de vouloir supprimer le devoir "<span className="font-medium">{deleteConfirm.title}</span>" ?
+              <br />
+              <span className="text-red-600 text-sm">Cette action est irréversible.</span>
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition"
+              >
+                Supprimer
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

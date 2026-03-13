@@ -30,20 +30,15 @@ export function AssignmentForm({ defaultCourseId, onCreated }: Props) {
     }
   }, [defaultCourseId]);
 
-  const handleCreateAssignment = async () => {
+  const handleCreateAssignment = async (e: React.FormEvent) => {
+    e.preventDefault(); // Empêche le rechargement de page
+    
     if (!title.trim()) return;
     if (!dueDate) return;
     if (!formCourseId) {
       setError("Sélectionne un cours pour créer un devoir.");
       return;
     }
-
-    console.log("CREATE ASSIGNMENT", {
-      title,
-      dueDate,
-      formCourseId,
-      defaultCourseId,
-    });
 
     const ms = Number(maxScore);
     if (Number.isNaN(ms) || ms <= 0 || ms > 1000) {
