@@ -61,6 +61,7 @@ export class CourseResourcesService {
         _count: {
           select: {
             downloadEvents: true,
+            viewEvents: true,
           },
         },
       },
@@ -77,6 +78,7 @@ export class CourseResourcesService {
       createdAt: r.createdAt,
       uploadedBy: r.teacher,
       downloadCount: r._count.downloadEvents,
+      viewCount: r._count.viewEvents,
     }));
   }
 
@@ -181,6 +183,16 @@ export class CourseResourcesService {
 
   async trackDownload(resourceId: string, courseId: string, userId: string) {
     await this.prisma.resourceDownloadEvent.create({
+      data: {
+        resourceId,
+        courseId,
+        userId,
+      },
+    });
+  }
+
+  async trackView(resourceId: string, courseId: string, userId: string) {
+    await this.prisma.resourceViewEvent.create({
       data: {
         resourceId,
         courseId,

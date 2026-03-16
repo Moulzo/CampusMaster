@@ -7,10 +7,12 @@ import {
   getAdminAnalyticsOverview,
   getAdminAnalyticsGradesEvolution,
   getAdminAnalyticsWeeklyDownloads,
+  getAdminAnalyticsWeeklyViews,
   getAdminAnalyticsConfigurableKpis,
   type AdminAnalyticsOverview,
   type SemesterGradesEvolution,
   type WeeklyDownloadsPoint,
+  type WeeklyViewsPoint,
   type AdminConfigurableKpis,
 } from "@/lib/admin-analytics";
 import { getSemesters, getLearningModules, type Semester, type LearningModule } from "@/lib/admin-academics";
@@ -156,6 +158,7 @@ function StatChip({
 export default function AdminAnalyticsPage() {
   const [data, setData] = useState<SemesterGradesEvolution[]>([]);
   const [weeklyDownloads, setWeeklyDownloads] = useState<WeeklyDownloadsPoint[]>([]);
+  const [weeklyViews, setWeeklyViews] = useState<WeeklyViewsPoint[]>([]);
   const [configurableKpis, setConfigurableKpis] = useState<AdminConfigurableKpis | null>(null);
   const [overviewData, setOverviewData] = useState<AdminAnalyticsOverview | null>(null);
   const [semesters, setSemesters] = useState<Semester[]>([]);
@@ -167,6 +170,7 @@ export default function AdminAnalyticsPage() {
 
   const [weeklyRange, setWeeklyRange] = useState<"4" | "8" | "12" | "all">("8");
   const [weeklyExpanded, setWeeklyExpanded] = useState(false);
+  const [weeklyActivityTab, setWeeklyActivityTab] = useState<"downloads" | "views">("downloads");
   const [semesterTrendExpanded, setSemesterTrendExpanded] = useState(true);
   const [semesterTrendView, setSemesterTrendView] = useState<"combined" | "grades" | "submissionRate">("combined");
 
@@ -180,11 +184,12 @@ export default function AdminAnalyticsPage() {
       try {
         setLoading(true);
 
-        const [overview, gradesEvolution, weekly, configurable, semestersData, modulesData] =
+        const [overview, gradesEvolution, weekly, views, configurable, semestersData, modulesData] =
           await Promise.all([
             getAdminAnalyticsOverview(),
             getAdminAnalyticsGradesEvolution(),
             getAdminAnalyticsWeeklyDownloads(),
+            getAdminAnalyticsWeeklyViews(),
             getAdminAnalyticsConfigurableKpis(),
             getSemesters(),
             getLearningModules(),
@@ -194,6 +199,7 @@ export default function AdminAnalyticsPage() {
 
         setData(gradesEvolution);
         setWeeklyDownloads(weekly);
+        setWeeklyViews(views);
         setConfigurableKpis(configurable);
         setOverviewData(overview);
         setSemesters(semestersData);
@@ -216,13 +222,22 @@ export default function AdminAnalyticsPage() {
     (async () => {
       try {
         setWeeklyLoading(true);
-        const weekly = await getAdminAnalyticsWeeklyDownloads({
-          semesterId: weeklySemesterId || undefined,
-          moduleId: weeklyModuleId || undefined,
-        });
-        if (!cancelled) setWeeklyDownloads(weekly);
+        const [weekly, views] = await Promise.all([
+          getAdminAnalyticsWeeklyDownloads({
+            semesterId: weeklySemesterId || undefined,
+            moduleId: weeklyModuleId || undefined,
+          }),
+          getAdminAnalyticsWeeklyViews({
+            semesterId: weeklySemesterId || undefined,
+            moduleId: weeklyModuleId || undefined,
+          }),
+        ]);
+        if (!cancelled) {
+          setWeeklyDownloads(weekly);
+          setWeeklyViews(views);
+        }
       } catch (e: any) {
-        if (!cancelled) setError(e?.message ?? "Erreur de chargement des téléchargements hebdomadaires.");
+        if (!cancelled) setError(e?.message ?? "Erreur de chargement des données hebdomadaires.");
       } finally {
         if (!cancelled) setWeeklyLoading(false);
       }
@@ -253,6 +268,12 @@ export default function AdminAnalyticsPage() {
     const weeksToShow = parseInt(weeklyRange, 10);
     return weeklyDownloads.slice(-weeksToShow);
   }, [weeklyDownloads, weeklyRange]);
+
+  const filteredWeeklyViews = useMemo(() => {
+    if (weeklyRange === "all") return weeklyViews;
+    const weeksToShow = parseInt(weeklyRange, 10);
+    return weeklyViews.slice(-weeksToShow);
+  }, [weeklyViews, weeklyRange]);
 
   const globalKpis = useMemo(() => {
     return {
@@ -546,14 +567,39 @@ export default function AdminAnalyticsPage() {
 
               <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-md">
                 <SectionToggle
-                  title="Activité hebdomadaire des téléchargements"
-                  subtitle="Suivi hebdomadaire des téléchargements de supports pédagogiques."
+                  title="Activité hebdomadaire"
+                  subtitle="Suivi hebdomadaire des téléchargements et consultations de supports pédagogiques."
                   expanded={weeklyExpanded}
                   onToggle={() => setWeeklyExpanded((prev) => !prev)}
                 />
 
                 {weeklyExpanded && (
                   <>
+                    {/* Onglets pour basculer entre téléchargements et vues */}
+                    <div className="mb-6 flex gap-2 border-b border-slate-200">
+                      <button
+                        onClick={() => setWeeklyActivityTab("downloads")}
+                        className={`px-4 py-2 font-medium transition ${
+                          weeklyActivityTab === "downloads"
+                            ? "border-b-2 border-blue-600 text-blue-600"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        Téléchargements
+                      </button>
+                      <button
+                        onClick={() => setWeeklyActivityTab("views")}
+                        className={`px-4 py-2 font-medium transition ${
+                          weeklyActivityTab === "views"
+                            ? "border-b-2 border-blue-600 text-blue-600"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        Consultations
+                      </button>
+                    </div>
+
+                    {/* Filtres (communs aux deux onglets) */}
                     <div className="mb-6 grid grid-cols-1 gap-3 lg:grid-cols-3">
                       <select
                         value={weeklyRange}
@@ -597,37 +643,79 @@ export default function AdminAnalyticsPage() {
                       </select>
                     </div>
 
-                    {weeklyLoading ? (
-                      <div className="py-8 text-center text-sm text-slate-400">
-                        Chargement des téléchargements hebdomadaires...
-                      </div>
-                    ) : filteredWeeklyDownloads.length === 0 ? (
-                      <div className="py-8 text-center text-sm text-slate-400">
-                        Aucune activité hebdomadaire disponible.
-                      </div>
-                    ) : (
-                      <ResponsiveContainer width="100%" height={280}>
-                        <LineChart
-                          data={filteredWeeklyDownloads}
-                          margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                          <XAxis dataKey="label" tick={{ fill: "#94a3b8", fontSize: 12 }} />
-                          <YAxis allowDecimals={false} tick={{ fill: "#94a3b8", fontSize: 12 }} />
-                          <Tooltip content={<CustomTooltip />} />
-                          <Legend wrapperStyle={{ color: "#64748b", fontSize: 12 }} />
+                    {/* Contenu spécifique à chaque onglet */}
+                    {weeklyActivityTab === "downloads" && (
+                      <>
+                        {weeklyLoading ? (
+                          <div className="py-8 text-center text-sm text-slate-400">
+                            Chargement des téléchargements hebdomadaires...
+                          </div>
+                        ) : filteredWeeklyDownloads.length === 0 ? (
+                          <div className="py-8 text-center text-sm text-slate-400">
+                            Aucune activité hebdomadaire disponible.
+                          </div>
+                        ) : (
+                          <ResponsiveContainer width="100%" height={280}>
+                            <LineChart
+                              data={filteredWeeklyDownloads}
+                              margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                              <XAxis dataKey="label" tick={{ fill: "#94a3b8", fontSize: 12 }} />
+                              <YAxis allowDecimals={false} tick={{ fill: "#94a3b8", fontSize: 12 }} />
+                              <Tooltip content={<CustomTooltip />} />
+                              <Legend wrapperStyle={{ color: "#64748b", fontSize: 12 }} />
 
-                          <Line
-                            type="monotone"
-                            dataKey="downloadCount"
-                            name="Téléchargements"
-                            stroke="#3b82f6"
-                            strokeWidth={3}
-                            dot={{ r: 5, fill: "#3b82f6", strokeWidth: 2, stroke: "#fff" }}
-                            activeDot={{ r: 7 }}
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
+                              <Line
+                                type="monotone"
+                                dataKey="downloadCount"
+                                name="Téléchargements"
+                                stroke="#3b82f6"
+                                strokeWidth={3}
+                                dot={{ r: 5, fill: "#3b82f6", strokeWidth: 2, stroke: "#fff" }}
+                                activeDot={{ r: 7 }}
+                              />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        )}
+                      </>
+                    )}
+
+                    {weeklyActivityTab === "views" && (
+                      <>
+                        {weeklyLoading ? (
+                          <div className="py-8 text-center text-sm text-slate-400">
+                            Chargement des consultations hebdomadaires...
+                          </div>
+                        ) : filteredWeeklyViews.length === 0 ? (
+                          <div className="py-8 text-center text-sm text-slate-400">
+                            Aucune activité hebdomadaire disponible.
+                          </div>
+                        ) : (
+                          <ResponsiveContainer width="100%" height={280}>
+                            <LineChart
+                              data={filteredWeeklyViews}
+                              margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                              <XAxis dataKey="label" tick={{ fill: "#94a3b8", fontSize: 12 }} />
+                              <YAxis allowDecimals={false} tick={{ fill: "#94a3b8", fontSize: 12 }} />
+                              <Tooltip content={<CustomTooltip />} />
+                              <Legend wrapperStyle={{ color: "#64748b", fontSize: 12 }} />
+
+                              <Line
+                                type="monotone"
+                                dataKey="viewCount"
+                                name="Consultations"
+                                stroke="#2563eb"
+                                strokeWidth={3}
+                                dot={{ r: 5, fill: "#2563eb", strokeWidth: 2, stroke: "#fff" }}
+                                activeDot={{ r: 7 }}
+                              />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        )}
+                      </>
                     )}
                   </>
                 )}

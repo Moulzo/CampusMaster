@@ -143,6 +143,23 @@ export class CourseResourcesController {
     });
   }
 
+  @Post("resources/:id/view")
+  @UseGuards(JwtAuthGuard)
+  async trackView(@Param("id") id: string, @Request() req: any) {
+    const userId = req.user.id ?? req.user.sub;
+    const role = req.user.role;
+
+    const resource = await this.service.getResourceForDownload(id, userId, role);
+
+    try {
+      await this.service.trackView(resource.id, resource.courseId, userId);
+    } catch (e) {
+      console.error("Erreur tracking consultation ressource", e);
+    }
+
+    return { ok: true };
+  }
+
   // DELETE (teacher owner only OR admin)
   @Delete("resources/:id")
   @UseGuards(JwtAuthGuard, RolesGuard)

@@ -566,6 +566,74 @@ export class AdminAnalyticsService {
     return Array.from(buckets.values()).sort((a, b) => a.weekKey.localeCompare(b.weekKey));
   }
 
+  async getWeeklyViews(filters?: { semesterId?: string; moduleId?: string }) {
+    const events = await this.prisma.resourceViewEvent.findMany({
+      where: {
+        resource: {
+          course: {
+            ...(filters?.moduleId ? { learningModuleId: filters.moduleId } : {}),
+            ...(filters?.semesterId
+              ? {
+                  learningModule: {
+                    semesterId: filters.semesterId,
+                  },
+                }
+              : {}),
+          },
+        },
+      },
+      select: {
+        viewedAt: true,
+      },
+      orderBy: { viewedAt: 'asc' },
+    });
+
+    type WeekBucket = {
+      weekKey: string;
+      label: string;
+      viewCount: number;
+    };
+
+    const buckets = new Map<string, WeekBucket>();
+
+    const getWeekStart = (date: Date) => {
+      const d = new Date(date);
+      d.setHours(0, 0, 0, 0);
+      const day = d.getDay();
+      const diff = day === 0 ? -6 : 1 - day; // lundi
+      d.setDate(d.getDate() + diff);
+      return d;
+    };
+
+    const toWeekKey = (date: Date) => {
+      const start = getWeekStart(date);
+      return start.toISOString().slice(0, 10);
+    };
+
+    const toWeekLabel = (date: Date) => {
+      const start = getWeekStart(date);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+      return `${start.toLocaleDateString('fr-FR')} - ${end.toLocaleDateString('fr-FR')}`;
+    };
+
+    for (const event of events) {
+      const weekKey = toWeekKey(event.viewedAt);
+
+      if (!buckets.has(weekKey)) {
+        buckets.set(weekKey, {
+          weekKey,
+          label: toWeekLabel(event.viewedAt),
+          viewCount: 0,
+        });
+      }
+
+      buckets.get(weekKey)!.viewCount += 1;
+    }
+
+    return Array.from(buckets.values()).sort((a, b) => a.weekKey.localeCompare(b.weekKey));
+  }
+
   async getConfigurableKpis() {
     const assignments = await this.prisma.assignment.findMany({
       select: {

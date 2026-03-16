@@ -50,6 +50,7 @@ model User {
   notifications       Notification[]
   courseResources     CourseResource[]
   resourceDownloadEvents ResourceDownloadEvent[]
+  resourceViewEvents     ResourceViewEvent[]
 
   // Annonces créées par l'utilisateur
   announcements      Announcement[] @relation("AnnouncementAuthor")
@@ -115,6 +116,7 @@ model Course {
   assignments        Assignment[]
   courseResources    CourseResource[]
   resourceDownloadEvents ResourceDownloadEvent[]
+  resourceViewEvents     ResourceViewEvent[]
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }
@@ -221,6 +223,7 @@ model CourseResource {
   updatedAt   DateTime @updatedAt
 
   downloadEvents ResourceDownloadEvent[]
+  viewEvents     ResourceViewEvent[]
 
   @@index([courseId])
   @@index([teacherId])
@@ -295,4 +298,21 @@ model ResourceDownloadEvent {
   @@index([courseId])
   @@index([userId])
   @@index([downloadedAt])
+}
+
+model ResourceViewEvent {
+  id        String   @id @default(cuid())
+  resourceId String
+  courseId   String
+  userId     String
+  viewedAt   DateTime @default(now())
+
+  resource CourseResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  course   Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([resourceId])
+  @@index([courseId])
+  @@index([userId])
+  @@index([viewedAt])
 }

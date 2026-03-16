@@ -12,6 +12,7 @@ export type CourseResource = {
   size: number;
   createdAt: string;
   downloadCount: number;
+  viewCount: number;
 
   // ✅ API renvoie "uploadedBy"
   uploadedBy: UserLite | null;
@@ -106,4 +107,29 @@ export async function deleteCourseResource(resourceId: string) {
   }
 
   return res.json();
+}
+
+export async function trackCourseResourceView(resourceId: string): Promise<void> {
+  const token = localStorage.getItem("accessToken");
+  if (!token) {
+    const msg = "❌ Pas de token d'accès trouvé. Veuillez vous reconnecter.";
+    console.error(msg);
+    throw new Error(msg);
+  }
+  
+  try {
+    await apiFetchJson(`/courses/resources/${resourceId}/view`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+  } catch (error: any) {
+    console.error("Erreur trackCourseResourceView:", error);
+    throw error;
+  }
+}
+
+export function getCourseResourceDownloadUrl(resourceId: string): string {
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api";
+  return `${baseUrl}/courses/resources/${resourceId}/download`;
 }

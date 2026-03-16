@@ -59,4 +59,15 @@ export class AdminAnalyticsController {
   ) {
     return this.adminAnalyticsService.getWeeklyDownloads({ semesterId, moduleId });
   }
+
+  @Get('weekly-views')
+  @ApiOperation({ summary: 'Get weekly views analytics' })
+  @ApiQuery({ name: 'semesterId', required: false, type: String })
+  @ApiQuery({ name: 'moduleId', required: false, type: String })
+  getWeeklyViews(
+    @Query('semesterId') semesterId?: string,
+    @Query('moduleId') moduleId?: string,
+  ) {
+    return this.adminAnalyticsService.getWeeklyViews({ semesterId, moduleId });
+  }
 }

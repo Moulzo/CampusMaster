@@ -74,6 +74,12 @@ export type WeeklyDownloadsPoint = {
   downloadCount: number;
 };
 
+export type WeeklyViewsPoint = {
+  weekKey: string;
+  label: string;
+  viewCount: number;
+};
+
 export type AdminConfigurableKpis = {
   counts: {
     expectedCount: number;
@@ -100,8 +106,14 @@ export async function getAdminAnalyticsCourses(): Promise<AdminCourseAnalytics[]
 }
 
 // ✅ NOUVEAU
-export async function getAdminAnalyticsGradesEvolution(): Promise<SemesterGradesEvolution[]> {
-  return apiFetchJson("/admin/analytics/grades-evolution");
+export async function getAdminAnalyticsGradesEvolution(filters?: {
+  semesterId?: string;
+}): Promise<SemesterGradesEvolution[]> {
+  const params = new URLSearchParams();
+  if (filters?.semesterId) params.append("semesterId", filters.semesterId);
+
+  const query = params.toString();
+  return apiFetchJson(`/admin/analytics/grades-evolution${query ? `?${query}` : ""}`);
 }
 
 export async function getAdminAnalyticsWeeklyActivity(filters?: {
@@ -127,6 +139,18 @@ export async function getAdminAnalyticsWeeklyDownloads(filters?: {
 
   const query = params.toString();
   return apiFetchJson(`/admin/analytics/weekly-downloads${query ? `?${query}` : ""}`);
+}
+
+export async function getAdminAnalyticsWeeklyViews(filters?: {
+  semesterId?: string;
+  moduleId?: string;
+}): Promise<WeeklyViewsPoint[]> {
+  const params = new URLSearchParams();
+  if (filters?.semesterId) params.append("semesterId", filters.semesterId);
+  if (filters?.moduleId) params.append("moduleId", filters.moduleId);
+
+  const query = params.toString();
+  return apiFetchJson(`/admin/analytics/weekly-views${query ? `?${query}` : ""}`);
 }
 
 export async function getAdminAnalyticsConfigurableKpis(filters?: {

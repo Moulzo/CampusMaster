@@ -1,7 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { listCourseResources, uploadCourseResource, downloadCourseResource, deleteCourseResource, type CourseResource, formatFileSize, formatDate, getFileIcon } from "@/lib/course-resources";
+import {
+  listCourseResources,
+  uploadCourseResource,
+  downloadCourseResource,
+  deleteCourseResource,
+  trackCourseResourceView,
+  getCourseResourceDownloadUrl,
+  type CourseResource,
+  formatFileSize,
+  formatDate,
+  getFileIcon,
+} from "@/lib/course-resources";
 
 // Helper pour afficher l'uploader
 function uploaderLabel(r: { uploadedBy: { fullName: string | null; email: string } | null }) {
@@ -25,6 +36,7 @@ export function CourseResourcesPanel({
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
+  const [viewingIds, setViewingIds] = useState<Set<string>>(new Set());
 
   async function refresh() {
     setLoading(true);
@@ -42,7 +54,7 @@ export function CourseResourcesPanel({
 
   async function onDelete(resourceId: string) {
     if (readOnly) return;
-    if (downloadingIds.has(resourceId) || saving) return;
+    if (viewingIds.has(resourceId) || downloadingIds.has(resourceId) || saving) return;
     if (!confirm("Êtes-vous sûr de vouloir supprimer ce support ?")) {
       return;
     }
@@ -73,9 +85,43 @@ export function CourseResourcesPanel({
     }
   }
 
+  async function onView(resourceId: string) {
+    if (viewingIds.has(resourceId) || downloadingIds.has(resourceId) || saving) return;
+
+    setViewingIds((prev) => new Set(prev).add(resourceId));
+    try {
+      await trackCourseResourceView(resourceId);
+      
+      // Télécharger le fichier de manière authentifiée et l'ouvrir dans un nouvel onglet
+      const { apiFetch } = await import("@/lib/auth");
+      const res = await apiFetch(`/courses/resources/${resourceId}/download`, {
+        method: "GET",
+      });
+
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(txt || `HTTP ${res.status}`);
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener,noreferrer");
+      // Nettoyer après un délai pour permettre au navigateur de démarrer le chargement
+      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+    } catch (e: any) {
+      alert(e?.message ?? "Consultation impossible");
+    } finally {
+      setViewingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(resourceId);
+        return next;
+      });
+    }
+  }
+
   async function onUpload() {
     if (readOnly) return;
-    if (saving || downloadingIds.size > 0) return;
+    if (saving || viewingIds.size > 0 || downloadingIds.size > 0) return;
     if (!file) return alert("Choisis un fichier.");
     if (!title.trim()) return alert("Titre requis.");
     
@@ -113,7 +159,7 @@ export function CourseResourcesPanel({
             className="border rounded-md p-2 w-full" 
             value={title} 
             onChange={(e) => setTitle(e.target.value)} 
-            disabled={saving || downloadingIds.size > 0}
+            disabled={saving || viewingIds.size > 0 || downloadingIds.size > 0}
           />
         </div>
 
@@ -123,7 +169,7 @@ export function CourseResourcesPanel({
             className="border rounded-md p-2 w-full" 
             value={description} 
             onChange={(e) => setDescription(e.target.value)} 
-            disabled={saving || downloadingIds.size > 0}
+            disabled={saving || viewingIds.size > 0 || downloadingIds.size > 0}
           />
         </div>
 
@@ -137,7 +183,7 @@ export function CourseResourcesPanel({
               type="file" 
               onChange={(e) => setFile(e.target.files?.[0] ?? null)} 
               className="hidden"
-              disabled={saving || downloadingIds.size > 0}
+              disabled={saving || viewingIds.size > 0 || downloadingIds.size > 0}
             />
           </label>
           {file && (
@@ -149,7 +195,7 @@ export function CourseResourcesPanel({
 
         <button
           onClick={onUpload}
-          disabled={saving || downloadingIds.size > 0}
+          disabled={saving || viewingIds.size > 0 || downloadingIds.size > 0}
           className="px-4 py-2 rounded-md bg-zinc-900 text-white disabled:opacity-50"
         >
           {saving ? "Upload..." : "Ajouter le support"}
@@ -185,8 +231,16 @@ export function CourseResourcesPanel({
                 <div className="flex gap-2 ml-4">
                   <button
                     className="underline disabled:opacity-50"
+                    onClick={() => onView(r.id)}
+                    disabled={viewingIds.has(r.id) || downloadingIds.has(r.id) || saving}
+                  >
+                    {viewingIds.has(r.id) ? "Ouverture..." : "Consulter"}
+                  </button>
+
+                  <button
+                    className="underline disabled:opacity-50"
                     onClick={() => onDownload(r.id, r.filename)}
-                    disabled={downloadingIds.has(r.id) || saving}
+                    disabled={viewingIds.has(r.id) || downloadingIds.has(r.id) || saving}
                   >
                     {downloadingIds.has(r.id) ? "Téléchargement..." : "Télécharger"}
                   </button>
@@ -194,7 +248,7 @@ export function CourseResourcesPanel({
                     <button
                       className="text-red-600 underline disabled:opacity-50"
                       onClick={() => onDelete(r.id)}
-                      disabled={downloadingIds.has(r.id) || saving}
+                      disabled={viewingIds.has(r.id) || downloadingIds.has(r.id) || saving}
                     >
                       Supprimer
                     </button>
