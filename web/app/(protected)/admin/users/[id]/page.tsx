@@ -9,6 +9,7 @@ import {
   unsetStudentModule,
   type LearningModule,
 } from "@/lib/admin-academics";
+import { roleOptions, getRoleLabel } from "@/lib/role-labels";
 
 export default function AdminUserDetailPage() {
   const router = useRouter();
@@ -52,15 +53,15 @@ export default function AdminUserDetailPage() {
     if (!user) return;
     setSaving(true);
     try {
-      // 1) update user (nom + role)
+      // 1) envoyer toujours fullName et role (Backend demande au moins 1 champ)
       const updated = await adminUpdateUser(user.id, { fullName, role });
       setUser(updated);
 
       // 2) gérer l'affectation module UNIQUEMENT pour STUDENT
       if (role === "STUDENT") {
-        if (learningModuleId) {
+        if (learningModuleId && learningModuleId !== user.learningModuleId) {
           await setStudentModule(user.id, learningModuleId);
-        } else {
+        } else if (!learningModuleId && user.learningModuleId) {
           await unsetStudentModule(user.id);
         }
       } else if (user.learningModuleId) {
@@ -73,9 +74,10 @@ export default function AdminUserDetailPage() {
       setUser(fresh);
       setLearningModuleId(fresh.learningModuleId ?? "");
 
-      alert("Utilisateur mis a jour ✅");
+      alert("Utilisateur mis à jour ✅");
     } catch (e: any) {
-      alert(e?.message ?? "Mise a jour impossible.");
+      console.error("Save error:", e);
+      alert(e?.message ?? "Mise à jour impossible.");
     } finally {
       setSaving(false);
     }
@@ -109,15 +111,17 @@ export default function AdminUserDetailPage() {
       </div>
 
       <div className="space-y-2">
-        <label className="block text-sm">Role</label>
+        <label className="block text-sm">Rôle</label>
         <select
           className="w-full border rounded-md p-2"
           value={role}
           onChange={(e) => setRole(e.target.value as AdminUser["role"])}
         >
-          <option value="STUDENT">STUDENT</option>
-          <option value="TEACHER">TEACHER</option>
-          <option value="ADMIN">ADMIN</option>
+          {roleOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
         </select>
       </div>
 

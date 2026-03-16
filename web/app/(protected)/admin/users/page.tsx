@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { adminDeleteUser, adminListUsers, type AdminUser } from "@/lib/admin-users";
 import { UserTable } from "@/components/admin/UserTable";
+import { roleOptions, getRoleLabel } from "@/lib/role-labels";
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -72,8 +73,7 @@ export default function AdminUsersPage() {
       </div>
 
       <div className="text-sm text-zinc-600">
-        Total: {users.length} — ADMIN: {stats.ADMIN ?? 0} — TEACHER: {stats.TEACHER ?? 0} — STUDENT:{" "}
-        {stats.STUDENT ?? 0}
+        Total: {users.length} — {roleOptions.map((opt) => `${opt.label}: ${stats[opt.value as AdminUser["role"]] ?? 0}`).join(" — ")}
       </div>
 
       <div className="flex items-center gap-3">
@@ -84,9 +84,9 @@ export default function AdminUsersPage() {
           onChange={(e) => setRoleFilter(e.target.value as any)}
         >
           <option value="">Tous</option>
-          <option value="ADMIN">ADMIN</option>
-          <option value="TEACHER">TEACHER</option>
-          <option value="STUDENT">STUDENT</option>
+          {roleOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
         </select>
 
         {roleFilter && (

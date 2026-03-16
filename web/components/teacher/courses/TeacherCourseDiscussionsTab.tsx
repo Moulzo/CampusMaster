@@ -8,6 +8,7 @@ import {
   deleteThread,
   Thread,
 } from "@/lib/discussions";
+import { getRoleLabel } from "@/lib/role-labels";
 
 export function TeacherCourseDiscussionsTab({ courseId }: { courseId: string }) {
   const router = useRouter();
@@ -113,7 +114,7 @@ export function TeacherCourseDiscussionsTab({ courseId }: { courseId: string }) 
                   <p className="font-semibold text-slate-900">{th.title}</p>
                   <p className="text-sm text-slate-500 mt-1">
                     Par {th.createdBy?.fullName ?? "Utilisateur"} •{" "}
-                    {th.createdBy?.role ?? ""} • {th._count?.messages ?? 0} message
+                    {th.createdBy ? getRoleLabel(th.createdBy.role) : ""} • {th._count?.messages ?? 0} message
                     {th._count?.messages === 1 ? "" : "s"}
                   </p>
                 </div>

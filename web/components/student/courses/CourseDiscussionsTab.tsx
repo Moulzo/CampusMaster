@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { listCourseThreads, createCourseThread, deleteThread, Thread } from "@/lib/discussions";
+import { getRoleLabel } from "@/lib/role-labels";
 
 export function CourseDiscussionsTab({ courseId }: { courseId: string }) {
   const router = useRouter();
@@ -149,7 +150,7 @@ export function CourseDiscussionsTab({ courseId }: { courseId: string }) {
                   <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
                     <span>Par {thread.createdBy.fullName}</span>
                     <span>•</span>
-                    <span>{thread.createdBy.role}</span>
+                    <span>{getRoleLabel(thread.createdBy.role)}</span>
                     <span>•</span>
                     <span>{thread._count.messages} message{thread._count.messages > 1 ? "s" : ""}</span>
                   </div>

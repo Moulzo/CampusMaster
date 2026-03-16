@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { adminCreateUser, type CreateAdminUserDto, type Role } from "@/lib/admin-users";
+import { roleOptions } from "@/lib/role-labels";
 
 export default function AdminCreateUserPage() {
   const router = useRouter();
@@ -90,9 +91,11 @@ export default function AdminCreateUserPage() {
             onChange={handleChange}
             className="w-full border rounded-md p-2"
           >
-            <option value="STUDENT">STUDENT</option>
-            <option value="TEACHER">TEACHER</option>
-            {/* Option ADMIN désactivée pour sécurité */}
+            {roleOptions.filter(opt => opt.value !== "ADMIN").map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
           </select>
           <p className="text-xs text-gray-500">
             Note: Les administrateurs ne peuvent pas créer d'autres administrateurs

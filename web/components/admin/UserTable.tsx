@@ -1,4 +1,5 @@
 import type { AdminUser } from "@/lib/admin-users";
+import { getRoleLabel } from "@/lib/role-labels";
 
 type Props = {
   users: AdminUser[];
@@ -29,7 +30,7 @@ export function UserTable({ users, onDelete, renderEditLink }: Props) {
                   u.role === 'TEACHER' ? 'bg-green-100 text-green-800' :
                   'bg-blue-100 text-blue-800'
                 }`}>
-                  {u.role}
+                  {getRoleLabel(u.role)}
                 </span>
               </td>
               <td className="p-3 flex gap-3">

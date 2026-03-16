@@ -11,7 +11,7 @@ export type NavItem = {
 export function getNavItems(role: Role): NavItem[] {
   if (role === "ADMIN") {
     return [
-      { label: "Dashboard", href: "/admin", icon: "📊", enabled: true },
+      { label: "Tableau de bord", href: "/admin", icon: "📊", enabled: true },
       { label: "Utilisateurs", href: "/admin/users", icon: "👥", enabled: true },
       { label: "Étudiants", href: "/admin/students", icon: "🎓", enabled: true },
       { label: "Semestres", href: "/admin/semesters", icon: "📅", enabled: true },
@@ -24,7 +24,7 @@ export function getNavItems(role: Role): NavItem[] {
 
   if (role === "TEACHER") {
     return [
-      { label: "Dashboard", href: "/teacher", icon: "📊", enabled: true },
+      { label: "Tableau de bord", href: "/teacher", icon: "📊", enabled: true },
       { label: "Mes matières", href: "/teacher/subjects", icon: "📚", enabled: true },
       { label: "Devoirs", href: "/teacher/assignments", icon: "📝", enabled: true },
       { label: "Annonces", href: "/teacher/announcements", icon: "📢", enabled: false },
@@ -34,7 +34,7 @@ export function getNavItems(role: Role): NavItem[] {
 
   // STUDENT (par défaut)
   return [
-    { label: "Dashboard", href: "/student", icon: "📊", enabled: true },
+    { label: "Tableau de bord", href: "/student", icon: "📊", enabled: true },
     { label: "Mes matières", href: "/student/subjects", icon: "📚", enabled: true },
     { label: "Devoirs", href: "/student/assignments", icon: "📝", enabled: true },
     { label: "Résultats", href: "/student/results", icon: "📊", enabled: true },

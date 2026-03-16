@@ -12,6 +12,7 @@ import {
   type Student,
 } from "@/lib/admin-academics";
 import { useToast } from "@/lib/toast";
+import { getRoleLabel } from "@/lib/role-labels";
 import {
   ResponsiveContainer,
   LineChart,
@@ -225,7 +226,7 @@ export default function AdminStudentDetailPage() {
 
                 <div>
                   <div className="text-sm font-medium text-slate-500">Rôle</div>
-                  <div className="mt-1 text-slate-900">{student.role}</div>
+                  <div className="mt-1 text-slate-900">{getRoleLabel(student.role)}</div>
                 </div>
 
                 <div>
