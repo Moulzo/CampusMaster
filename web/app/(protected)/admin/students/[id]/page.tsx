@@ -109,9 +109,15 @@ export default function AdminStudentDetailPage() {
       const analyticsData = await adminGetStudentAnalytics(studentId);
       setAnalytics(analyticsData);
       
-      const firstSemester = analyticsData.semesters[0];
-      setSelectedSemesterId(firstSemester?.semesterId ?? "");
-      setSelectedSubjectId(firstSemester?.subjects[0]?.subjectId ?? "");
+      const currentSemesterId = student?.learningModule?.semester?.id;
+      
+      const defaultSemester =
+        analyticsData.semesters.find(
+          (semester) => semester.semesterId === currentSemesterId,
+        ) ?? analyticsData.semesters[0];
+
+      setSelectedSemesterId(defaultSemester?.semesterId ?? "");
+      setSelectedSubjectId(defaultSemester?.subjects[0]?.subjectId ?? "");
     } catch (e: any) {
       toast.push("error", e?.message ?? "Erreur lors du chargement des analytics");
     } finally {
@@ -150,10 +156,10 @@ export default function AdminStudentDetailPage() {
   }, [studentId]);
 
   useEffect(() => {
-    if (studentId) {
+    if (studentId && student) {
       loadAnalytics();
     }
-  }, [studentId]);
+  }, [studentId, student]);
 
   useEffect(() => {
     if (!selectedSemester) {
@@ -414,7 +420,10 @@ export default function AdminStudentDetailPage() {
                                 <XAxis dataKey="name" tick={{ fill: "#64748b", fontSize: 12 }} />
                                 <YAxis domain={[0, 20]} tick={{ fill: "#64748b", fontSize: 12 }} />
                                 <Tooltip
-                                  formatter={(value: any) => [`${value ? value.toFixed(2) : "—" } / 20`, "Note"]}
+                                  formatter={(value: any) => [
+                                    value === null || value === undefined ? "—" : `${Number(value).toFixed(2)} / 20`,
+                                    "Note",
+                                  ]}
                                   labelFormatter={(_, payload) =>
                                     payload?.[0]?.payload?.fullName ?? ""
                                   }
