@@ -6,7 +6,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import * as express from 'express';
 import * as fs from 'fs';
-import { join, basename } from 'path';
+import { join, basename, normalize, sep } from 'path';
 
 // Servir les fichiers statiques pour les uploads
 function serveStaticFiles(app: NestExpressApplication) {
@@ -14,14 +14,21 @@ function serveStaticFiles(app: NestExpressApplication) {
   const staticMiddleware = express.static(uploadsDir);
 
   app.use('/uploads', (req, res, next) => {
-    const filePath = join(uploadsDir, req.path.replace('/uploads', ''));
+    const relativePath = normalize(req.path).replace(/^([/\\])+/, '');
+    const normalizedUploadsDir = normalize(uploadsDir + sep);
+    const normalizedFilePath = normalize(join(uploadsDir, relativePath));
 
-    if (!fs.existsSync(filePath)) {
+    if (!normalizedFilePath.startsWith(normalizedUploadsDir)) {
+      return res.status(403).send('Forbidden');
+    }
+
+    if (!fs.existsSync(normalizedFilePath)) {
       return res.status(404).send('File not found');
     }
 
-    const filename = basename(filePath);
+    const filename = basename(normalizedFilePath);
     const mappingPath = join(uploadsDir, 'filenames.json');
+
     try {
       if (fs.existsSync(mappingPath)) {
         const mappings = JSON.parse(fs.readFileSync(mappingPath, 'utf-8'));

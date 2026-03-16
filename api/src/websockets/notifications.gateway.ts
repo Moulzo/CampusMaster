@@ -9,7 +9,7 @@ import {
   ConnectedSocket,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger, UnauthorizedException } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { WebSocketService } from './websocket-simple.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -20,9 +20,18 @@ interface AuthenticatedSocket extends Socket {
   user?: any;
 }
 
+const websocketCorsOrigins = (
+  process.env.WEBSOCKET_CORS_ORIGINS ??
+  process.env.FRONTEND_URL ??
+  'http://localhost:3000'
+)
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 @WebSocketGateway({
   cors: {
-    origin: ["http://localhost:3000", "http://192.168.56.1:3000"],
+    origin: websocketCorsOrigins,
     credentials: true,
   },
 })
@@ -36,7 +45,7 @@ export class NotificationsGateway implements OnGatewayInit, OnGatewayConnection,
     private prisma: PrismaService,
   ) {}
 
-  afterInit(server: Server) {
+  afterInit() {
     this.logger.log("✅ WebSocket Gateway initialized on /socket.io");
   }
 

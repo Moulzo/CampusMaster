@@ -7,6 +7,11 @@ import { EmailService } from '../email/email.service';
 
 type Role = 'STUDENT' | 'TEACHER' | 'ADMIN';
 
+interface JwtSignOptions {
+  secret: string;
+  expiresIn: string | number;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -16,11 +21,19 @@ export class AuthService {
   ) {}
 
   private get accessSecret() {
-    return process.env.JWT_ACCESS_SECRET ?? 'dev_access_secret';
+    const secret = process.env.JWT_ACCESS_SECRET;
+    if (!secret) {
+      throw new Error('JWT_ACCESS_SECRET is not defined');
+    }
+    return secret;
   }
 
   private get refreshSecret() {
-    return process.env.JWT_REFRESH_SECRET ?? 'dev_refresh_secret';
+    const secret = process.env.JWT_REFRESH_SECRET;
+    if (!secret) {
+      throw new Error('JWT_REFRESH_SECRET is not defined');
+    }
+    return secret;
   }
 
   private async signAccessToken(payload: { sub: string; email: string; role: Role; fullName: string }) {
@@ -197,7 +210,12 @@ export class AuthService {
     };
   }
 
-  private async issueTokens(user: any) {
+  private async issueTokens(user: {
+    id: string;
+    email: string;
+    fullName: string;
+    role: string;
+  }) {
     const accessToken = await this.signAccessToken({
       sub: user.id,
       email: user.email,
@@ -256,10 +274,8 @@ export class AuthService {
         ...(process.env.NODE_ENV === 'development' && { resetToken })
       };
     } catch (emailError) {
-      console.error('Erreur email:', emailError);
       // Fallback: return token in development even if email fails
       if (process.env.NODE_ENV === 'development') {
-        console.log(`Reset token for ${email}: ${resetToken}`);
         return { 
           message: 'Email non envoyé (erreur de configuration), mais voici le token pour le développement:',
           resetToken 
