@@ -62,6 +62,11 @@ model User {
   // ✅ Cours où l'user est prof (many-to-many)
   teachingCourses     Course[]      @relation("CourseTeachers")
 
+  // Messagerie privée
+  privateConversationParticipants PrivateConversationParticipant[]
+  privateMessagesSent            PrivateMessage[] @relation("PrivateMessageSender")
+  privateConversationsCreated    PrivateConversation[] @relation("PrivateConversationCreator")
+
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 }
@@ -315,4 +320,48 @@ model ResourceViewEvent {
   @@index([courseId])
   @@index([userId])
   @@index([viewedAt])
+}
+
+model PrivateConversation {
+  id          String   @id @default(cuid())
+  createdById String
+  createdBy   User     @relation("PrivateConversationCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  participants PrivateConversationParticipant[]
+  messages     PrivateMessage[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([createdById])
+}
+
+model PrivateConversationParticipant {
+  conversationId String
+  userId         String
+  joinedAt       DateTime @default(now())
+  lastReadAt     DateTime?
+
+  conversation PrivateConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@index([userId])
+  @@index([lastReadAt])
+}
+
+model PrivateMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  senderId       String
+  content        String
+
+  conversation PrivateConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User                @relation("PrivateMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
 }

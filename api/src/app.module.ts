@@ -21,6 +21,7 @@ import { StudentModule } from './student/student.module';
 import { TeacherModule } from './teacher/teacher.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
 import { DiscussionsModule } from './discussions/discussions.module';
+import { PrivateMessagesModule } from './private-messages/private-messages.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { DiscussionsModule } from './discussions/discussions.module';
     TeacherModule,
     AnnouncementsModule,
     DiscussionsModule,
+    PrivateMessagesModule,
   ],
   controllers: [AppController],
   providers: [

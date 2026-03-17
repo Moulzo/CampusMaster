@@ -31,7 +31,7 @@ export default function SimpleTokenTestPage() {
 
   const testWebSocket = () => {
     if (!token) {
-      addLog('Erreur: Aucun token disponible');
+      addLog('❌ Token non disponible');
       return;
     }
 
@@ -57,7 +57,7 @@ export default function SimpleTokenTestPage() {
       });
 
       // Forcer la reconnexion avec le token
-      websocketService.reconnectWithNewToken(token);
+      websocketService.connect(token);
     });
   };
 

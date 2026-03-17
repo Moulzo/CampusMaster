@@ -130,7 +130,7 @@ export default function TeacherAssignmentsPage() {
     try {
       const created = await createAssignment(
         title,
-        description || null,
+        description || undefined,
         new Date(dueDate).toISOString(),
         formCourseId,
         {

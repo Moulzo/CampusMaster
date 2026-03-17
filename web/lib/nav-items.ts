@@ -1,11 +1,10 @@
-// apps/web/lib/nav-items.ts
 import type { Role } from "@/lib/auth-context";
 
 export type NavItem = {
   label: string;
   href: string;
   icon?: string;
-  enabled?: boolean; // si false => lien grisé (page pas encore créée)
+  enabled?: boolean;
 };
 
 export function getNavItems(role: Role): NavItem[] {
@@ -18,6 +17,7 @@ export function getNavItems(role: Role): NavItem[] {
       { label: "Modules", href: "/admin/modules", icon: "📚", enabled: true },
       { label: "Matières", href: "/admin/subjects", icon: "📖", enabled: true },
       { label: "Statistiques", href: "/admin/analytics", icon: "📈", enabled: true },
+      { label: "Messages", href: "/messages", icon: "💬", enabled: true },
       { label: "Test WS", href: "/test-notifications", icon: "🌐", enabled: true },
     ];
   }
@@ -27,17 +27,15 @@ export function getNavItems(role: Role): NavItem[] {
       { label: "Tableau de bord", href: "/teacher", icon: "📊", enabled: true },
       { label: "Mes matières", href: "/teacher/subjects", icon: "📚", enabled: true },
       { label: "Devoirs", href: "/teacher/assignments", icon: "📝", enabled: true },
-      { label: "Annonces", href: "/teacher/announcements", icon: "📢", enabled: false },
-      { label: "Messages", href: "/teacher/messages", icon: "💬", enabled: false },
+      { label: "Messages", href: "/messages", icon: "💬", enabled: true },
     ];
   }
 
-  // STUDENT (par défaut)
   return [
     { label: "Tableau de bord", href: "/student", icon: "📊", enabled: true },
     { label: "Mes matières", href: "/student/subjects", icon: "📚", enabled: true },
     { label: "Devoirs", href: "/student/assignments", icon: "📝", enabled: true },
     { label: "Résultats", href: "/student/results", icon: "📊", enabled: true },
-    { label: "Messages", href: "/student/messages", icon: "💬", enabled: false },
+    { label: "Messages", href: "/messages", icon: "💬", enabled: true },
   ];
 }
