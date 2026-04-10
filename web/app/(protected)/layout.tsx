@@ -135,7 +135,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
       <ToastProvider>
         <div className="h-screen bg-slate-50 overflow-hidden">
           {user && token && (
-            <div className="fixed top-4 right-4 z-[70]">
+            <div className="fixed top-4 right-4 z-70">
               <NotificationPanel token={token} />
             </div>
           )}
