@@ -4,10 +4,11 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PrivateMessagesService } from './private-messages.service';
 import { CreateConversationDto } from './dto/create-conversation.dto';
@@ -19,6 +20,20 @@ import { SendPrivateMessageDto } from './dto/send-private-message.dto';
 @UseGuards(JwtAuthGuard)
 export class PrivateMessagesController {
   constructor(private readonly privateMessagesService: PrivateMessagesService) {}
+
+  @Get('users/search')
+  @ApiOperation({ summary: 'Search users for private messaging' })
+  @ApiQuery({
+    name: 'q',
+    required: false,
+    description: 'Search by full name or email (minimum 2 characters)',
+    example: 'abdou',
+  })
+  @ApiResponse({ status: 200, description: 'Users retrieved successfully' })
+  searchUsers(@Req() req: any, @Query('q') q = '') {
+    const currentUserId = req.user.id ?? req.user.sub;
+    return this.privateMessagesService.searchUsers(currentUserId, q);
+  }
 
   @Get('conversations')
   @ApiOperation({ summary: 'Get all conversations for current user' })

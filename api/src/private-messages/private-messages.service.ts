@@ -29,6 +29,45 @@ export class PrivateMessagesService {
     return participant;
   }
 
+  async searchUsers(currentUserId: string, q: string) {
+    const query = q.trim();
+
+    if (query.length < 2) {
+      return [];
+    }
+
+    return this.prisma.user.findMany({
+      where: {
+        id: { not: currentUserId },
+        OR: [
+          {
+            fullName: {
+              contains: query,
+              mode: 'insensitive',
+            },
+          },
+          {
+            email: {
+              contains: query,
+              mode: 'insensitive',
+            },
+          },
+        ],
+      },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        role: true,
+      },
+      orderBy: [
+        { fullName: 'asc' },
+        { email: 'asc' },
+      ],
+      take: 10,
+    });
+  }
+
   async listConversations(currentUserId: string) {
     const participations = await this.prisma.privateConversationParticipant.findMany({
       where: { userId: currentUserId },
@@ -71,6 +110,24 @@ export class PrivateMessagesService {
       },
     });
 
+    const unreadCounts = await Promise.all(
+      participations.map(async (participation) => {
+        const count = await this.prisma.privateMessage.count({
+          where: {
+            conversationId: participation.conversationId,
+            senderId: { not: currentUserId },
+            ...(participation.lastReadAt
+              ? { createdAt: { gt: participation.lastReadAt } }
+              : {}),
+          },
+        });
+
+        return [participation.conversationId, count] as const;
+      }),
+    );
+
+    const unreadCountMap = new Map(unreadCounts);
+
     return participations.map((participation) => {
       const conversation = participation.conversation;
       const lastMessage = conversation.messages[0] ?? null;
@@ -78,12 +135,6 @@ export class PrivateMessagesService {
       const otherParticipants = conversation.participants
         .filter((p) => p.userId !== currentUserId)
         .map((p) => p.user);
-
-      const unreadCount = conversation.messages.filter((m) => {
-        if (m.senderId === currentUserId) return false;
-        if (!participation.lastReadAt) return true;
-        return m.createdAt > participation.lastReadAt;
-      }).length;
 
       return {
         id: conversation.id,
@@ -104,7 +155,7 @@ export class PrivateMessagesService {
               sender: lastMessage.sender,
             }
           : null,
-        unreadCount,
+        unreadCount: unreadCountMap.get(conversation.id) ?? 0,
       };
     });
   }

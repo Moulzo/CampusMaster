@@ -7,6 +7,13 @@ export type PrivateMessageUser = {
   role: string;
 };
 
+export type PrivateMessageUserSearchItem = {
+  id: string;
+  fullName: string;
+  email: string;
+  role: 'ADMIN' | 'TEACHER' | 'STUDENT';
+};
+
 export type PrivateConversationParticipant = {
   userId: string;
   joinedAt: string;
@@ -45,6 +52,13 @@ export type PrivateConversationDetail = {
   participants: PrivateConversationParticipant[];
   messages: PrivateMessage[];
 };
+
+export async function searchPrivateMessageUsers(
+  q: string,
+): Promise<PrivateMessageUserSearchItem[]> {
+  const params = new URLSearchParams({ q });
+  return apiFetchJson(`/private-messages/users/search?${params.toString()}`);
+}
 
 export async function listPrivateConversations(): Promise<
   PrivateConversationListItem[]

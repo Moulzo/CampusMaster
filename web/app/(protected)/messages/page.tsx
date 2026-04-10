@@ -7,9 +7,11 @@ import {
   getPrivateConversation,
   listPrivateConversations,
   markPrivateConversationAsRead,
+  searchPrivateMessageUsers,
   sendPrivateMessage,
   type PrivateConversationDetail,
   type PrivateConversationListItem,
+  type PrivateMessageUserSearchItem,
 } from "@/lib/private-messages";
 
 function formatDateTime(dateString: string) {
@@ -48,7 +50,10 @@ export default function MessagesPage() {
   const [creatingConversation, setCreatingConversation] = useState(false);
 
   const [newMessage, setNewMessage] = useState("");
-  const [newParticipantId, setNewParticipantId] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState<PrivateMessageUserSearchItem[]>([]);
+  const [selectedUser, setSelectedUser] = useState<PrivateMessageUserSearchItem | null>(null);
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
   const [error, setError] = useState("");
 
   async function refreshConversations(preferredConversationId?: string) {
@@ -107,6 +112,34 @@ export default function MessagesPage() {
     return conversations.find((c) => c.id === selectedConversationId) ?? null;
   }, [conversations, selectedConversationId]);
 
+  async function handleUserSearch(value: string) {
+    setSearchTerm(value);
+    setSelectedUser(null);
+
+    const trimmed = value.trim();
+    if (trimmed.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    try {
+      setIsSearchingUsers(true);
+      const results = await searchPrivateMessageUsers(trimmed);
+      setSearchResults(results);
+    } catch (error) {
+      console.error(error);
+      setSearchResults([]);
+    } finally {
+      setIsSearchingUsers(false);
+    }
+  }
+
+  function handleSelectUser(user: PrivateMessageUserSearchItem) {
+    setSelectedUser(user);
+    setSearchTerm(`${user.fullName} (${user.email})`);
+    setSearchResults([]);
+  }
+
   async function handleSendMessage() {
     if (!selectedConversationId || sending) return;
 
@@ -126,15 +159,16 @@ export default function MessagesPage() {
   }
 
   async function handleCreateConversation() {
-    const participantId = newParticipantId.trim();
-    if (!participantId || creatingConversation) return;
+    if (!selectedUser || creatingConversation) return;
 
     setCreatingConversation(true);
     setError("");
 
     try {
-      const conversation = await createPrivateConversation([participantId]);
-      setNewParticipantId("");
+      const conversation = await createPrivateConversation([selectedUser.id]);
+      setSelectedUser(null);
+      setSearchTerm("");
+      setSearchResults([]);
       await refreshConversations(conversation.id);
       await loadConversation(conversation.id);
     } catch (e: any) {
@@ -163,24 +197,54 @@ export default function MessagesPage() {
         <aside className="rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 p-4">
             <h2 className="text-base font-semibold text-slate-900">Conversations</h2>
-            <p className="mt-1 text-xs text-slate-500">
-              Saisis pour l’instant un ID utilisateur pour démarrer une conversation.
-            </p>
 
-            <div className="mt-4 space-y-2">
+            <div className="mt-4 space-y-3">
               <input
                 type="text"
-                value={newParticipantId}
-                onChange={(e) => setNewParticipantId(e.target.value)}
-                placeholder="ID utilisateur"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                value={searchTerm}
+                onChange={(e) => void handleUserSearch(e.target.value)}
+                placeholder="Rechercher un utilisateur par nom ou email"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
               />
+
+              {isSearchingUsers && (
+                <p className="text-sm text-gray-500">Recherche en cours...</p>
+              )}
+
+              {!isSearchingUsers && searchResults.length > 0 && (
+                <div className="max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white">
+                  {searchResults.map((user) => (
+                    <button
+                      key={user.id}
+                      type="button"
+                      onClick={() => handleSelectUser(user)}
+                      className="flex w-full flex-col items-start px-3 py-2 text-left hover:bg-gray-50"
+                    >
+                      <span className="font-medium text-gray-900">{user.fullName}</span>
+                      <span className="text-sm text-gray-500">{user.email}</span>
+                      <span className="text-xs text-gray-400">{user.role}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {!isSearchingUsers && searchTerm.trim().length >= 2 && searchResults.length === 0 && !selectedUser && (
+                <p className="text-sm text-gray-500">Aucun utilisateur trouvé.</p>
+              )}
+
+              {selectedUser && (
+                <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm">
+                  Conversation avec <span className="font-medium">{selectedUser.fullName}</span> ({selectedUser.email})
+                </div>
+              )}
+
               <button
-                onClick={handleCreateConversation}
-                disabled={creatingConversation}
-                className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                type="button"
+                onClick={() => void handleCreateConversation()}
+                disabled={!selectedUser || creatingConversation}
+                className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {creatingConversation ? "Création..." : "Nouvelle conversation"}
+                {creatingConversation ? 'Création...' : 'Démarrer'}
               </button>
             </div>
           </div>
