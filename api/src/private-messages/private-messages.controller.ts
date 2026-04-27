@@ -43,6 +43,17 @@ export class PrivateMessagesController {
     return this.privateMessagesService.listConversations(currentUserId);
   }
 
+  @Get('unread-conversations-count')
+  @ApiOperation({ summary: 'Get unread private conversations count' })
+  @ApiResponse({
+    status: 200,
+    description: 'Unread private conversations count retrieved successfully',
+  })
+  getUnreadConversationsCount(@Req() req: any) {
+    const currentUserId = req.user.id ?? req.user.sub;
+    return this.privateMessagesService.getUnreadConversationsCount(currentUserId);
+  }
+
   @Post('conversations')
   @ApiOperation({ summary: 'Create a new private conversation' })
   @ApiResponse({ status: 201, description: 'Conversation created successfully' })

@@ -382,6 +382,30 @@ export class PrivateMessagesService {
 
     this.notificationsGateway.emitPrivateMessage(conversationId, payload);
 
+    const conversation = await this.prisma.privateConversation.findUnique({
+      where: { id: conversationId },
+      include: {
+        participants: {
+          select: {
+            userId: true,
+          },
+        },
+      },
+    });
+
+    if (conversation) {
+      const recipients = conversation.participants.filter(
+        (participant) => participant.userId !== currentUserId,
+      );
+
+      for (const recipient of recipients) {
+        this.notificationsGateway.emitIncomingPrivateMessage(recipient.userId, {
+          conversationId,
+          message: payload,
+        });
+      }
+    }
+
     return payload;
   }
 
@@ -401,5 +425,48 @@ export class PrivateMessagesService {
     });
 
     return { ok: true };
+  }
+
+  async getUnreadConversationsCount(currentUserId: string) {
+    const participations =
+      await this.prisma.privateConversationParticipant.findMany({
+        where: {
+          userId: currentUserId,
+        },
+        select: {
+          conversationId: true,
+          lastReadAt: true,
+        },
+      });
+
+    if (participations.length === 0) {
+      return { count: 0 };
+    }
+
+    const unreadChecks = await Promise.all(
+      participations.map(async (participation) => {
+        const unreadMessagesCount = await this.prisma.privateMessage.count({
+          where: {
+            conversationId: participation.conversationId,
+            senderId: {
+              not: currentUserId,
+            },
+            ...(participation.lastReadAt
+              ? {
+                  createdAt: {
+                    gt: participation.lastReadAt,
+                  },
+                }
+              : {}),
+          },
+        });
+
+        return unreadMessagesCount > 0;
+      }),
+    );
+
+    return {
+      count: unreadChecks.filter(Boolean).length,
+    };
   }
 }

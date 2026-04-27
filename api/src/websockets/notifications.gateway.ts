@@ -98,8 +98,12 @@ export class NotificationsGateway implements OnGatewayInit, OnGatewayConnection,
       // Ajouter le client connecté
       if (client.userId) {
         this.webSocketService.addClient(client.userId, client);
+
+        // Rejoindre la room utilisateur
+        client.join(this.userRoom(client.userId));
+        this.logger.log(`[${client.id}] Joined user room ${this.userRoom(client.userId)}`);
       }
-      
+
       this.logger.log(`[${client.id}] Authentifié - User: ${client.userId}, Role: ${client.userRole}`);
       
       // Confirmer l'authentification au client
@@ -204,6 +208,10 @@ export class NotificationsGateway implements OnGatewayInit, OnGatewayConnection,
 
   private privateConversationRoom(conversationId: string) {
     return `private-conversation:${conversationId}`;
+  }
+
+  private userRoom(userId: string) {
+    return `user:${userId}`;
   }
 
   private async canAccessPrivateConversation(
@@ -406,5 +414,13 @@ export class NotificationsGateway implements OnGatewayInit, OnGatewayConnection,
     this.logger.log(
       `Private message emitted to conversation ${conversationId}`,
     );
+  }
+
+  emitIncomingPrivateMessage(userId: string, payload: any) {
+    const room = this.userRoom(userId);
+
+    this.server.to(room).emit('private-messages:incoming', payload);
+
+    this.logger.log(`Incoming private message emitted to ${room}`);
   }
 }

@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 import { logout } from "@/lib/auth";
 import { getNavItems } from "@/lib/nav-items";
 import { getRoleLabel } from "@/lib/role-labels";
+import { PrivateMessageToasts } from "@/components/PrivateMessageToasts";
 
 function isActive(pathname: string, href: string, homeHref: string) {
   if (href === homeHref) return pathname === href;
@@ -302,6 +303,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </main>
         </div>
       </div>
+      <PrivateMessageToasts />
     </div>
   );
 }
