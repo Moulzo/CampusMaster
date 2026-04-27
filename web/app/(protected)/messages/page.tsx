@@ -100,6 +100,28 @@ function updateConversationPreview(
   });
 }
 
+function socketStatusLabel(status: "connecting" | "connected" | "disconnected") {
+  switch (status) {
+    case "connected":
+      return "Temps réel actif";
+    case "connecting":
+      return "Connexion temps réel...";
+    case "disconnected":
+      return "Temps réel déconnecté";
+  }
+}
+
+function socketStatusClass(status: "connecting" | "connected" | "disconnected") {
+  switch (status) {
+    case "connected":
+      return "bg-green-100 text-green-700 border-green-200";
+    case "connecting":
+      return "bg-orange-100 text-orange-700 border-orange-200";
+    case "disconnected":
+      return "bg-gray-100 text-gray-600 border-gray-200";
+  }
+}
+
 export default function MessagesPage() {
   const { user } = useAuth();
 
@@ -124,6 +146,9 @@ export default function MessagesPage() {
   const [selectedUser, setSelectedUser] = useState<PrivateMessageUserSearchItem | null>(null);
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
   const [error, setError] = useState("");
+  const [socketStatus, setSocketStatus] = useState<
+    "connecting" | "connected" | "disconnected"
+  >("connecting");
 
   useEffect(() => {
     selectedConversationIdRef.current = selectedConversationId;
@@ -215,15 +240,34 @@ export default function MessagesPage() {
       transports: ["websocket"],
     });
 
+    setSocketStatus("connecting");
+
     socketRef.current = socket;
 
     socket.on("connect", () => {
+      setSocketStatus("connected");
       joinedConversationIdsRef.current.clear();
 
       setConversations((current) => {
         joinConversationRooms(current);
         return current;
       });
+    });
+
+    socket.on("disconnect", () => {
+      setSocketStatus("disconnected");
+    });
+
+    socket.io.on("reconnect_attempt", () => {
+      setSocketStatus("connecting");
+    });
+
+    socket.io.on("reconnect", () => {
+      setSocketStatus("connected");
+    });
+
+    socket.io.on("reconnect_error", () => {
+      setSocketStatus("disconnected");
     });
 
     socket.on(
@@ -265,6 +309,7 @@ export default function MessagesPage() {
     return () => {
       socket.disconnect();
       socketRef.current = null;
+      setSocketStatus("disconnected");
     };
   }, []);
 
@@ -340,11 +385,30 @@ export default function MessagesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Messagerie</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Conversations privées internes entre utilisateurs de CampusMaster.
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Messagerie</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Conversations privées internes entre utilisateurs de CampusMaster.
+          </p>
+        </div>
+
+        <span
+          className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${socketStatusClass(
+            socketStatus,
+          )}`}
+        >
+          <span
+            className={`h-2 w-2 rounded-full ${
+              socketStatus === "connected"
+                ? "bg-green-500"
+                : socketStatus === "connecting"
+                  ? "bg-orange-500"
+                  : "bg-gray-400"
+            }`}
+          />
+          {socketStatusLabel(socketStatus)}
+        </span>
       </div>
 
       {error && (
