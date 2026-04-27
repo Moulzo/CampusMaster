@@ -149,6 +149,7 @@ export default function MessagesPage() {
   const [socketStatus, setSocketStatus] = useState<
     "connecting" | "connected" | "disconnected"
   >("connecting");
+  const [isConversationPanelOpen, setIsConversationPanelOpen] = useState(false);
 
   useEffect(() => {
     selectedConversationIdRef.current = selectedConversationId;
@@ -418,7 +419,11 @@ export default function MessagesPage() {
       )}
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <aside className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <aside
+          className={`${
+            isConversationPanelOpen ? "hidden lg:block" : "block"
+          } rounded-xl border border-slate-200 bg-white shadow-sm`}
+        >
           <div className="border-b border-slate-200 p-4">
             <h2 className="text-base font-semibold text-slate-900">Conversations</h2>
 
@@ -490,7 +495,10 @@ export default function MessagesPage() {
                     <li key={conversation.id}>
                       <button
                         type="button"
-                        onClick={() => setSelectedConversationId(conversation.id)}
+                        onClick={() => {
+                          setSelectedConversationId(conversation.id);
+                          setIsConversationPanelOpen(true);
+                        }}
                         className={[
                           "w-full rounded-lg border px-3 py-3 text-left transition",
                           active
@@ -528,7 +536,11 @@ export default function MessagesPage() {
           </div>
         </aside>
 
-        <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <section
+          className={`${
+            isConversationPanelOpen ? "block" : "hidden lg:block"
+          } rounded-xl border border-slate-200 bg-white shadow-sm`}
+        >
           {!selectedConversationId ? (
             <div className="flex h-[70vh] items-center justify-center px-6 text-center text-sm text-slate-500">
               Sélectionne une conversation pour afficher les messages.
@@ -544,6 +556,13 @@ export default function MessagesPage() {
           ) : (
             <div className="flex h-[70vh] flex-col">
               <div className="border-b border-slate-200 px-5 py-4">
+                <button
+                  type="button"
+                  onClick={() => setIsConversationPanelOpen(false)}
+                  className="mb-3 inline-flex items-center rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 lg:hidden"
+                >
+                  ← Retour aux conversations
+                </button>
                 <h2 className="text-base font-semibold text-slate-900">
                   {conversationTitle(selectedConversation, user?.id)}
                 </h2>
