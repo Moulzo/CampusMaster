@@ -202,6 +202,33 @@ export class NotificationsGateway implements OnGatewayInit, OnGatewayConnection,
     return `discussion:${threadId}`;
   }
 
+  private privateConversationRoom(conversationId: string) {
+    return `private-conversation:${conversationId}`;
+  }
+
+  private async canAccessPrivateConversation(
+    conversationId: string,
+    userId: string,
+  ) {
+    if (!userId) return false;
+
+    const participant =
+      await this.prisma.privateConversationParticipant.findUnique({
+        where: {
+          conversationId_userId: {
+            conversationId,
+            userId,
+          },
+        },
+        select: {
+          conversationId: true,
+          userId: true,
+        },
+      });
+
+    return !!participant;
+  }
+
   private async canAccessCourse(courseId: string, userId: string, role?: string) {
     if (!userId) return false;
     if (role === 'ADMIN') return true;
@@ -313,5 +340,71 @@ export class NotificationsGateway implements OnGatewayInit, OnGatewayConnection,
   emitDiscussionMessage(threadId: string, msg: any) {
     this.server.to(`thread:${threadId}`).emit('discussions:new-message', msg);
     this.logger.log(`📨 Discussion message emitted to thread:${threadId}`);
+  }
+
+  @SubscribeMessage('private-messages:join')
+  async handlePrivateMessagesJoin(
+    @MessageBody() data: { conversationId: string },
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    if (!client.userId) {
+      return { success: false, error: 'Not authenticated' };
+    }
+
+    const conversationId = data?.conversationId?.trim();
+
+    if (!conversationId) {
+      return { success: false, error: 'Missing conversationId' };
+    }
+
+    const hasAccess = await this.canAccessPrivateConversation(
+      conversationId,
+      client.userId,
+    );
+
+    if (!hasAccess) {
+      return { success: false, error: 'Forbidden' };
+    }
+
+    client.join(this.privateConversationRoom(conversationId));
+
+    this.logger.log(
+      `[${client.id}] Joined private conversation room ${conversationId}`,
+    );
+
+    return { success: true };
+  }
+
+  @SubscribeMessage('private-messages:leave')
+  handlePrivateMessagesLeave(
+    @MessageBody() data: { conversationId: string },
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    const conversationId = data?.conversationId?.trim();
+
+    if (!conversationId) {
+      return { success: false, error: 'Missing conversationId' };
+    }
+
+    client.leave(this.privateConversationRoom(conversationId));
+
+    this.logger.log(
+      `[${client.id}] Left private conversation room ${conversationId}`,
+    );
+
+    return { success: true };
+  }
+
+  emitPrivateMessage(conversationId: string, message: any) {
+    this.server
+      .to(this.privateConversationRoom(conversationId))
+      .emit('private-messages:new-message', {
+        conversationId,
+        message,
+      });
+
+    this.logger.log(
+      `Private message emitted to conversation ${conversationId}`,
+    );
   }
 }

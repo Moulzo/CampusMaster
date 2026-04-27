@@ -5,12 +5,16 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsGateway } from '../websockets/notifications.gateway';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { SendPrivateMessageDto } from './dto/send-private-message.dto';
 
 @Injectable()
 export class PrivateMessagesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsGateway: NotificationsGateway,
+  ) {}
 
   private async assertConversationParticipant(conversationId: string, userId: string) {
     const participant = await this.prisma.privateConversationParticipant.findUnique({
@@ -367,7 +371,7 @@ export class PrivateMessagesService {
       return created;
     });
 
-    return {
+    const payload = {
       id: message.id,
       content: message.content,
       createdAt: message.createdAt,
@@ -375,6 +379,10 @@ export class PrivateMessagesService {
       senderId: message.senderId,
       sender: message.sender,
     };
+
+    this.notificationsGateway.emitPrivateMessage(conversationId, payload);
+
+    return payload;
   }
 
   async markAsRead(conversationId: string, currentUserId: string) {

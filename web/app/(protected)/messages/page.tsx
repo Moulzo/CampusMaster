@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { io, type Socket } from "socket.io-client";
+import { getAccessToken } from "@/lib/auth";
 import {
   createPrivateConversation,
   getPrivateConversation,
@@ -13,6 +15,12 @@ import {
   type PrivateConversationListItem,
   type PrivateMessageUserSearchItem,
 } from "@/lib/private-messages";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api";
+
+function getSocketUrl() {
+  return API_URL.replace(/\/api$/, "");
+}
 
 function formatDateTime(dateString: string) {
   return new Date(dateString).toLocaleString("fr-FR", {
@@ -36,8 +44,69 @@ function conversationTitle(
   return others.join(", ");
 }
 
+type IncomingPrivateMessagePayload = {
+  conversationId: string;
+  message: PrivateConversationDetail["messages"][number];
+};
+
+function upsertPrivateMessage(
+  conversation: PrivateConversationDetail,
+  message: PrivateConversationDetail["messages"][number],
+): PrivateConversationDetail {
+  const exists = conversation.messages.some((m) => m.id === message.id);
+
+  if (exists) {
+    return conversation;
+  }
+
+  return {
+    ...conversation,
+    messages: [...conversation.messages, message],
+  };
+}
+
+function updateConversationPreview(
+  conversations: PrivateConversationListItem[],
+  payload: IncomingPrivateMessagePayload,
+  currentUserId?: string,
+  selectedConversationId?: string,
+): PrivateConversationListItem[] {
+  const nextConversations = conversations.map((conversation) => {
+    if (conversation.id !== payload.conversationId) {
+      return conversation;
+    }
+
+    const isCurrentConversation = conversation.id === selectedConversationId;
+    const isMessageFromMe = payload.message.senderId === currentUserId;
+
+    return {
+      ...conversation,
+      updatedAt: payload.message.createdAt,
+      lastMessage: {
+        id: payload.message.id,
+        content: payload.message.content,
+        createdAt: payload.message.createdAt,
+        sender: payload.message.sender,
+      },
+      unreadCount:
+        isCurrentConversation || isMessageFromMe
+          ? 0
+          : conversation.unreadCount + 1,
+    };
+  });
+
+  return nextConversations.sort((a, b) => {
+    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+  });
+}
+
 export default function MessagesPage() {
   const { user } = useAuth();
+
+  const socketRef = useRef<Socket | null>(null);
+  const selectedConversationIdRef = useRef("");
+  const currentUserIdRef = useRef<string | undefined>(undefined);
+  const joinedConversationIdsRef = useRef<Set<string>>(new Set());
 
   const [conversations, setConversations] = useState<PrivateConversationListItem[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState("");
@@ -56,12 +125,40 @@ export default function MessagesPage() {
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    selectedConversationIdRef.current = selectedConversationId;
+  }, [selectedConversationId]);
+
+  useEffect(() => {
+    currentUserIdRef.current = user?.id;
+  }, [user?.id]);
+
+  function joinConversationRooms(conversationsToJoin: PrivateConversationListItem[]) {
+    const socket = socketRef.current;
+
+    if (!socket) return;
+
+    conversationsToJoin.forEach((conversation) => {
+      if (joinedConversationIdsRef.current.has(conversation.id)) {
+        return;
+      }
+
+      socket.emit("private-messages:join", {
+        conversationId: conversation.id,
+      });
+
+      joinedConversationIdsRef.current.add(conversation.id);
+    });
+  }
+
   async function refreshConversations(preferredConversationId?: string) {
     setLoadingList(true);
     setError("");
 
     try {
       const data = await listPrivateConversations();
+
+      joinConversationRooms(data);
       setConversations(data);
 
       const nextSelectedId =
@@ -108,6 +205,69 @@ export default function MessagesPage() {
     }
   }, [selectedConversationId]);
 
+  useEffect(() => {
+    const token = getAccessToken();
+
+    if (!token) return;
+
+    const socket = io(getSocketUrl(), {
+      auth: { token },
+      transports: ["websocket"],
+    });
+
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      joinedConversationIdsRef.current.clear();
+
+      setConversations((current) => {
+        joinConversationRooms(current);
+        return current;
+      });
+    });
+
+    socket.on(
+      "private-messages:new-message",
+      (payload: IncomingPrivateMessagePayload) => {
+        const currentSelectedConversationId = selectedConversationIdRef.current;
+
+        setSelectedConversation((current) => {
+          if (!current || current.id !== payload.conversationId) {
+            return current;
+          }
+
+          return upsertPrivateMessage(current, payload.message);
+        });
+
+        setConversations((current) =>
+          updateConversationPreview(
+            current,
+            payload,
+            currentUserIdRef.current,
+            currentSelectedConversationId,
+          ),
+        );
+
+        if (payload.conversationId === currentSelectedConversationId) {
+          void markPrivateConversationAsRead(payload.conversationId);
+
+          setConversations((current) =>
+            current.map((conversation) =>
+              conversation.id === payload.conversationId
+                ? { ...conversation, unreadCount: 0 }
+                : conversation,
+            ),
+          );
+        }
+      },
+    );
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, []);
+
   const selectedConversationMeta = useMemo(() => {
     return conversations.find((c) => c.id === selectedConversationId) ?? null;
   }, [conversations, selectedConversationId]);
@@ -150,7 +310,7 @@ export default function MessagesPage() {
     try {
       await sendPrivateMessage(selectedConversationId, content);
       setNewMessage("");
-      await loadConversation(selectedConversationId);
+      await refreshConversations(selectedConversationId);
     } catch (e: any) {
       setError(e?.message ?? "Erreur lors de l'envoi du message.");
     } finally {
