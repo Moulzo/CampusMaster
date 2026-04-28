@@ -1,33 +1,61 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { adminDeleteUser, adminListUsers, type AdminUser } from "@/lib/admin-users";
 import { UserTable } from "@/components/admin/UserTable";
 import { roleOptions, getRoleLabel } from "@/lib/role-labels";
 
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [roleFilter, setRoleFilter] = useState<"" | AdminUser["role"]>("");
+  type UserTab = "ALL" | AdminUser["role"];
 
-  async function refresh() {
-    setError(null);
-    setLoading(true);
+  const userTabs: Array<{ value: UserTab; label: string }> = [
+    { value: "ALL", label: "Tous" },
+    ...roleOptions.map((option) => ({
+      value: option.value as AdminUser["role"],
+      label: option.label,
+    })),
+  ];
+
+  const [activeTab, setActiveTab] = useState<UserTab>("ALL");
+  const [usersByTab, setUsersByTab] = useState<Partial<Record<UserTab, AdminUser[]>>>({});
+  const [loadingByTab, setLoadingByTab] = useState<Partial<Record<UserTab, boolean>>>({});
+  const [errorByTab, setErrorByTab] = useState<Partial<Record<UserTab, string | null>>>({});
+
+  const users = usersByTab[activeTab] ?? [];
+  const loading = loadingByTab[activeTab] ?? false;
+  const error = errorByTab[activeTab] ?? null;
+
+  async function loadTab(tab: UserTab, options?: { force?: boolean }) {
+    if (!options?.force && usersByTab[tab]) {
+      return;
+    }
+
+    setErrorByTab((prev) => ({ ...prev, [tab]: null }));
+    setLoadingByTab((prev) => ({ ...prev, [tab]: true }));
+
     try {
-      const data = await adminListUsers(roleFilter || undefined);
-      setUsers(data);
+      const role = tab === "ALL" ? undefined : tab;
+      const data = await adminListUsers(role);
+
+      setUsersByTab((prev) => ({ ...prev, [tab]: data }));
     } catch (e: any) {
-      setError(e?.message ?? "Erreur lors du chargement des utilisateurs.");
+      setErrorByTab((prev) => ({
+        ...prev,
+        [tab]: e?.message ?? "Erreur lors du chargement des utilisateurs.",
+      }));
     } finally {
-      setLoading(false);
+      setLoadingByTab((prev) => ({ ...prev, [tab]: false }));
     }
   }
 
+  function refresh() {
+    void loadTab(activeTab, { force: true });
+  }
+
   useEffect(() => {
-    refresh();
-  }, [roleFilter]);
+    void loadTab(activeTab);
+  }, [activeTab]);
 
   async function onDelete(id: string) {
     const ok = confirm("Supprimer cet utilisateur ?");
@@ -35,22 +63,19 @@ export default function AdminUsersPage() {
 
     try {
       await adminDeleteUser(id);
-      setUsers((prev) => prev.filter((u) => u.id !== id));
+      setUsersByTab((prev) => {
+        const next = { ...prev };
+
+        for (const tab of Object.keys(next) as UserTab[]) {
+          next[tab] = next[tab]?.filter((user) => user.id !== id);
+        }
+
+        return next;
+      });
     } catch (e: any) {
       alert(e?.message ?? "Suppression impossible.");
     }
   }
-
-  const stats = useMemo(() => {
-    const byRole = users.reduce(
-      (acc, u) => {
-        acc[u.role] = (acc[u.role] ?? 0) + 1;
-        return acc;
-      },
-      {} as Record<AdminUser["role"], number>
-    );
-    return byRole;
-  }, [users]);
 
   return (
     <div className="p-6 space-y-4">
@@ -64,7 +89,7 @@ export default function AdminUsersPage() {
             + Créer utilisateur
           </Link>
           <button
-            onClick={refresh}
+            onClick={() => refresh()}
             className="px-3 py-2 rounded-md bg-zinc-900 text-white hover:opacity-90"
           >
             Rafraichir
@@ -73,27 +98,41 @@ export default function AdminUsersPage() {
       </div>
 
       <div className="text-sm text-zinc-600">
-        Total: {users.length} — {roleOptions.map((opt) => `${opt.label}: ${stats[opt.value as AdminUser["role"]] ?? 0}`).join(" — ")}
+        {loading
+          ? "Chargement des utilisateurs..."
+          : `${users.length} utilisateur${users.length > 1 ? "s" : ""} dans cet onglet`}
       </div>
 
-      <div className="flex items-center gap-3">
-        <label className="text-sm text-zinc-600">Filtrer par rôle</label>
-        <select
-          className="border rounded-md p-2 text-sm"
-          value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value as any)}
-        >
-          <option value="">Tous</option>
-          {roleOptions.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
+      <div className="flex flex-wrap gap-2 border-b border-zinc-200">
+        {userTabs.map((tab) => {
+          const active = activeTab === tab.value;
+          const isLoaded = Boolean(usersByTab[tab.value]);
+          const isLoading = Boolean(loadingByTab[tab.value]);
 
-        {roleFilter && (
-          <button className="text-sm underline" onClick={() => setRoleFilter("")}>
-            Réinitialiser
-          </button>
-        )}
+          return (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() => setActiveTab(tab.value)}
+              className={[
+                "rounded-t-lg px-4 py-2 text-sm font-medium transition",
+                active
+                  ? "border border-b-white border-zinc-200 bg-white text-blue-700"
+                  : "text-zinc-600 hover:bg-zinc-50",
+              ].join(" ")}
+            >
+              {tab.label}
+
+              {isLoading ? (
+                <span className="ml-2 text-xs text-zinc-400">...</span>
+              ) : isLoaded ? (
+                <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600">
+                  {usersByTab[tab.value]?.length ?? 0}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
       </div>
 
       {loading && <p>Chargement…</p>}
