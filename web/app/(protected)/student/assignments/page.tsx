@@ -13,6 +13,7 @@ import {
 } from "@/lib/assignments";
 import { Dropzone } from "@/components/Dropzone";
 import { useToast } from "@/lib/toast";
+import { formatFileSize } from "@/lib/file-size";
 
 interface FileInfo {
   url: string;
@@ -404,7 +405,15 @@ export default function StudentAssignmentsPage() {
                                   <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
                                     <div className="flex items-center gap-2 flex-1 min-w-0">
                                       <p className="truncate text-sm font-semibold text-slate-800">{file.name}</p>
-                                      <span className="text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded">{Math.round((file.size || 0) / 1024)} KB</span>
+                                      {(() => {
+                                        const readableSize = formatFileSize(file.size);
+
+                                        return readableSize ? (
+                                          <span className="text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded">
+                                            {readableSize}
+                                          </span>
+                                        ) : null;
+                                      })()}
                                     </div>
                                     <button
                                       onClick={() => handleDeleteSubmittedFile(a.id, index)}
@@ -458,7 +467,15 @@ export default function StudentAssignmentsPage() {
                                   <div key={index} className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
                                     <div className="flex items-center gap-2 flex-1 min-w-0">
                                       <p className="truncate text-sm font-semibold text-emerald-800">{file.name}</p>
-                                      <span className="text-xs font-medium text-emerald-600 bg-emerald-100 px-2 py-1 rounded">{Math.round(file.size / 1024)} KB</span>
+                                      {(() => {
+                                        const readableSize = formatFileSize(file.size);
+
+                                        return readableSize ? (
+                                          <span className="text-xs font-medium text-emerald-600 bg-emerald-100 px-2 py-1 rounded">
+                                            {readableSize}
+                                          </span>
+                                        ) : null;
+                                      })()}
                                     </div>
                                     <button
                                       onClick={() => handleRemoveFile(index)}

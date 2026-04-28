@@ -16,6 +16,7 @@ import {
 } from "@/lib/assignments";
 import { useToast } from "@/lib/toast";
 import { downloadWithAuth } from "@/lib/download";
+import { formatFileSize } from "@/lib/file-size";
 
 function extractFiles(submission: any): Array<{ url: string; name?: string; size?: number; type?: string }> {
   // cas 1: tu as déjà un tableau (Prisma Json)
@@ -523,9 +524,15 @@ export default function TeacherAssignmentsPage() {
                                           <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
                                             <div className="flex items-center gap-2 flex-1 min-w-0">
                                               <p className="text-sm font-semibold text-slate-800 truncate">{file.name ?? "Fichier"}</p>
-                                              {typeof file.size === "number" && (
-                                                <span className="text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded">{Math.round(file.size / 1024)} KB</span>
-                                              )}
+                                              {(() => {
+                                                const readableSize = formatFileSize(file.size);
+
+                                                return readableSize ? (
+                                                  <span className="text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded">
+                                                    {readableSize}
+                                                  </span>
+                                                ) : null;
+                                              })()}
                                             </div>
                                             <button
                                               onClick={() => downloadWithAuth(file.url, file.name)}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { formatFileSize } from "@/lib/file-size";
 
 interface DropzoneProps {
   onFileUpload: (file: File) => void;
@@ -43,7 +44,8 @@ export function Dropzone({
 
     // Vérifier la taille
     if (file.size > maxSize) {
-      alert(`Fichier trop volumineux. Taille maximale: ${Math.round(maxSize / 1024 / 1024)}MB`);
+      const maxSizeReadable = formatFileSize(maxSize);
+      alert(`Fichier trop volumineux. Taille maximale: ${maxSizeReadable}`);
       return;
     }
 
@@ -73,7 +75,8 @@ export function Dropzone({
 
     // Vérifier la taille
     if (file.size > maxSize) {
-      alert(`Fichier trop volumineux. Taille maximale: ${Math.round(maxSize / 1024 / 1024)}MB`);
+      const maxSizeReadable = formatFileSize(maxSize);
+      alert(`Fichier trop volumineux. Taille maximale: ${maxSizeReadable}`);
       return;
     }
 

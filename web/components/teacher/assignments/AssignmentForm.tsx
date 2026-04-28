@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { getCourses } from "@/lib/courses";
 import { createAssignment, uploadFile } from "@/lib/assignments";
 import { useToast } from "@/lib/toast";
+import { formatFileSize } from "@/lib/file-size";
 
 type Props = {
   defaultCourseId?: string;
@@ -199,6 +200,15 @@ export function AssignmentForm({ defaultCourseId, onCreated }: Props) {
         {attachment && (
           <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
             <p className="text-sm text-blue-700 truncate">{attachment.name}</p>
+            {(() => {
+              const readableSize = formatFileSize(attachment.size);
+
+              return readableSize ? (
+                <p className="mt-1 text-xs text-blue-600">
+                  Taille : {readableSize}
+                </p>
+              ) : null;
+            })()}
           </div>
         )}
       </div>
