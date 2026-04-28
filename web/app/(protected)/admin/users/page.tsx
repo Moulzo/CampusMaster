@@ -5,6 +5,10 @@ import Link from "next/link";
 import { adminDeleteUser, adminListUsers, type AdminUser } from "@/lib/admin-users";
 import { UserTable } from "@/components/admin/UserTable";
 import { roleOptions, getRoleLabel } from "@/lib/role-labels";
+import {
+  getLearningModules,
+  type LearningModule,
+} from "@/lib/admin-academics";
 
 export default function AdminUsersPage() {
   type UserTab = "ALL" | AdminUser["role"];
@@ -22,6 +26,11 @@ export default function AdminUsersPage() {
   const [usersByTab, setUsersByTab] = useState<Partial<Record<UserTab, AdminUser[]>>>({});
   const [loadingByTab, setLoadingByTab] = useState<Partial<Record<UserTab, boolean>>>({});
   const [errorByTab, setErrorByTab] = useState<Partial<Record<UserTab, string | null>>>({});
+  const [learningModules, setLearningModules] = useState<LearningModule[]>([]);
+  const [loadingModules, setLoadingModules] = useState(false);
+  const [moduleFilter, setModuleFilter] = useState<"ALL" | "UNASSIGNED" | string>(
+    "ALL",
+  );
 
   const users = usersByTab[activeTab] ?? [];
   const loading = loadingByTab[activeTab] ?? false;
@@ -30,17 +39,21 @@ export default function AdminUsersPage() {
   const filteredUsers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
-    if (!query) {
-      return users;
-    }
-
     return users.filter((user) => {
-      return (
+      const matchesSearch =
+        !query ||
         user.fullName?.toLowerCase().includes(query) ||
-        user.email?.toLowerCase().includes(query)
-      );
+        user.email?.toLowerCase().includes(query);
+
+      const matchesModule =
+        activeTab !== "STUDENT" ||
+        moduleFilter === "ALL" ||
+        (moduleFilter === "UNASSIGNED" && !user.learningModuleId) ||
+        user.learningModuleId === moduleFilter;
+
+      return matchesSearch && matchesModule;
     });
-  }, [users, searchQuery]);
+  }, [users, searchQuery, activeTab, moduleFilter]);
 
   async function loadTab(tab: UserTab, options?: { force?: boolean }) {
     if (!options?.force && usersByTab[tab]) {
@@ -71,6 +84,33 @@ export default function AdminUsersPage() {
 
   useEffect(() => {
     void loadTab(activeTab);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== "STUDENT") {
+      return;
+    }
+
+    if (learningModules.length > 0 || loadingModules) {
+      return;
+    }
+
+    setLoadingModules(true);
+
+    getLearningModules()
+      .then(setLearningModules)
+      .catch((error) => {
+        console.error("Erreur chargement modules:", error);
+      })
+      .finally(() => {
+        setLoadingModules(false);
+      });
+  }, [activeTab, learningModules.length, loadingModules]);
+
+  useEffect(() => {
+    if (activeTab !== "STUDENT") {
+      setModuleFilter("ALL");
+    }
   }, [activeTab]);
 
   async function onDelete(id: string) {
@@ -116,9 +156,13 @@ export default function AdminUsersPage() {
       <div className="text-sm text-zinc-600">
         {loading
           ? "Chargement des utilisateurs..."
-          : searchQuery.trim()
-            ? `${filteredUsers.length} résultat${filteredUsers.length > 1 ? "s" : ""} sur ${users.length} utilisateur${users.length > 1 ? "s" : ""}`
-            : `${users.length} utilisateur${users.length > 1 ? "s" : ""} dans cet onglet`}
+          : searchQuery.trim() || moduleFilter !== "ALL"
+            ? `${filteredUsers.length} résultat${
+                filteredUsers.length > 1 ? "s" : ""
+              } sur ${users.length} utilisateur${users.length > 1 ? "s" : ""}`
+            : `${users.length} utilisateur${
+                users.length > 1 ? "s" : ""
+              } dans cet onglet`}
       </div>
 
       <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -152,6 +196,42 @@ export default function AdminUsersPage() {
           )}
         </div>
       </div>
+
+      {activeTab === "STUDENT" && (
+        <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <label
+              htmlFor="admin-users-module-filter"
+              className="text-sm font-medium text-zinc-700"
+            >
+              Filtrer les étudiants par module
+            </label>
+            <p className="text-xs text-zinc-500">
+              Affiche uniquement les étudiants rattachés au module choisi.
+            </p>
+          </div>
+
+          <select
+            id="admin-users-module-filter"
+            value={moduleFilter}
+            onChange={(e) => setModuleFilter(e.target.value)}
+            disabled={loadingModules}
+            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:max-w-md"
+          >
+            <option value="ALL">
+              {loadingModules ? "Chargement des modules..." : "Tous les modules"}
+            </option>
+            <option value="UNASSIGNED">Étudiants non affectés</option>
+
+            {learningModules.map((module) => (
+              <option key={module.id} value={module.id}>
+                {module.semester?.name ? `${module.semester.name} — ` : ""}
+                {module.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2 border-b border-zinc-200">
         {userTabs.map((tab) => {
