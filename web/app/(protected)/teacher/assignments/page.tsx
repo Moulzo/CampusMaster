@@ -43,6 +43,21 @@ function formatDate(iso: string) {
   return d.toLocaleString();
 }
 
+function getMinDateTimeLocalValue() {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() + 1);
+
+  const offsetMs = now.getTimezoneOffset() * 60 * 1000;
+  return new Date(now.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function isPastDateTimeLocal(value: string) {
+  if (!value) return false;
+
+  const selectedDate = new Date(value);
+  return selectedDate.getTime() <= Date.now();
+}
+
 export default function TeacherAssignmentsPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
@@ -71,6 +86,8 @@ export default function TeacherAssignmentsPage() {
   const [draftBySubmissionId, setDraftBySubmissionId] = useState<Record<string, { score: string; feedback: string }>>({});
   const [lastSavedBySubmissionId, setLastSavedBySubmissionId] = useState<Record<string, string>>({});
   const [deletingAssignmentId, setDeletingAssignmentId] = useState<string | null>(null);
+
+  const minDueDate = getMinDateTimeLocalValue();
 
   const courseOptions = useMemo(() => {
     if (!courses || courses.length === 0) {
@@ -114,6 +131,11 @@ export default function TeacherAssignmentsPage() {
     e.preventDefault();
     if (!title.trim()) return;
     if (!dueDate) return;
+    if (isPastDateTimeLocal(dueDate)) {
+      setError("La date limite doit être dans le futur.");
+      toast.push("error", "La date limite doit être dans le futur.");
+      return;
+    }
     if (!formCourseId) {
       setError("Sélectionne un cours pour créer un devoir.");
       return;
@@ -348,6 +370,7 @@ export default function TeacherAssignmentsPage() {
                   <input
                     type="datetime-local"
                     value={dueDate}
+                    min={minDueDate}
                     onChange={(e) => setDueDate(e.target.value)}
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
                     required

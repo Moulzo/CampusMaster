@@ -41,6 +41,16 @@ export class AssignmentsService {
 
     if (!course) throw new NotFoundException('Course not found');
 
+    const dueDate = new Date(createAssignmentDto.dueDate);
+
+    if (Number.isNaN(dueDate.getTime())) {
+      throw new BadRequestException('dueDate must be a valid date');
+    }
+
+    if (dueDate.getTime() <= Date.now()) {
+      throw new BadRequestException('dueDate must be in the future');
+    }
+
     const isTeacher = course.teachers.some(t => t.id === teacherId);
     if (!isTeacher) {
       throw new ForbiddenException('You are not teacher of this course');
@@ -55,7 +65,7 @@ export class AssignmentsService {
       data: {
         title: createAssignmentDto.title,
         description: createAssignmentDto.description ?? null,
-        dueDate: new Date(createAssignmentDto.dueDate),
+        dueDate,
         maxScore,
         courseId: createAssignmentDto.courseId,
         teacherId,

@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsNumber, IsNotEmpty } from 'class-validator';
+import {
+  IsDateString,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class CreateAssignmentDto {
   @IsString()
@@ -9,7 +15,7 @@ export class CreateAssignmentDto {
   @IsOptional()
   description?: string;
 
-  @IsString()
+  @IsDateString()
   @IsNotEmpty()
   dueDate: string; // ISO string
 
