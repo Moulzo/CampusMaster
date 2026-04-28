@@ -256,50 +256,122 @@ export default function AdminPage() {
                 </div>
               ) : (
                 <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                    <StatCard title="Utilisateurs" value={overview?.totals.users ?? 0} icon="👥" tone="blue" />
-                    <StatCard title="Étudiants" value={overview?.totals.students ?? 0} icon="🎓" tone="green" />
-                    <StatCard title="Enseignants" value={overview?.totals.teachers ?? 0} icon="🧑‍🏫" tone="purple" />
-                    <StatCard title="Admins" value={overview?.totals.admins ?? 0} icon="🛡️" tone="slate" />
-                    <StatCard title="Cours" value={overview?.totals.courses ?? 0} icon="📚" tone="orange" />
-                    <StatCard title="Ressources" value={overview?.totals.resources ?? 0} icon="📎" tone="orange" />
-                    <StatCard title="Consultations" value={overview?.totals.resourceViews ?? 0} icon="👁️" tone="blue" />
-                    <StatCard title="Téléchargements" value={overview?.totals.resourceDownloads ?? 0} icon="⬇️" tone="green" />
-                    <StatCard title="Devoirs" value={overview?.totals.assignments ?? 0} icon="📝" tone="pink" />
-                    <StatCard
-                      title="Taux de remise"
-                      value={formatPercent(overview?.kpis.submissionRate ?? null)}
-                      icon="📈"
-                      tone="slate"
-                    />
-                  </div>
+                  <div className="space-y-6">
+                    <section className="space-y-3">
+                      <div>
+                        <h2 className="text-lg font-bold text-slate-900">Vue plateforme</h2>
+                        <p className="text-sm text-slate-500">
+                          Indicateurs globaux d'usage et de gestion de la plateforme.
+                        </p>
+                      </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-white rounded-lg shadow-md p-6 border border-slate-200">
-                      <p className="text-sm text-slate-500">Moyenne globale</p>
-                      <p className="text-3xl font-bold text-slate-900 mt-1">
-                        {formatAverage(overview?.kpis.globalAverage ?? null)}
-                      </p>
-                    </div>
-                    <div className="bg-white rounded-lg shadow-md p-6 border border-slate-200">
-                      <p className="text-sm text-slate-500">Rendus uniques</p>
-                      <p className="text-3xl font-bold text-slate-900 mt-1">
-                        {overview?.kpis.deliveredAssignments ?? 0}
-                      </p>
-                    </div>
-                    <div className="bg-white rounded-lg shadow-md p-6 border border-slate-200">
-                      <p className="text-sm text-slate-500">Rendus attendus</p>
-                      <p className="text-3xl font-bold text-slate-900 mt-1">
-                        {overview?.kpis.expectedSubmissions ?? 0}
-                      </p>
-                    </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                        <StatCard
+                          title="Utilisateurs"
+                          value={overview?.totals.users ?? 0}
+                          icon="👥"
+                          tone="blue"
+                        />
+                        <StatCard
+                          title="Étudiants"
+                          value={overview?.totals.students ?? 0}
+                          icon="🎓"
+                          tone="green"
+                        />
+                        <StatCard
+                          title="Enseignants"
+                          value={overview?.totals.teachers ?? 0}
+                          icon="🧑‍🏫"
+                          tone="purple"
+                        />
+                        <StatCard
+                          title="Admins"
+                          value={overview?.totals.admins ?? 0}
+                          icon="🛡️"
+                          tone="slate"
+                        />
+                        <StatCard
+                          title="Cours"
+                          value={overview?.totals.courses ?? 0}
+                          icon="📚"
+                          tone="orange"
+                        />
+                        <StatCard
+                          title="Ressources"
+                          value={overview?.totals.resources ?? 0}
+                          icon="📎"
+                          tone="orange"
+                        />
+                        <StatCard
+                          title="Consultations"
+                          value={overview?.totals.resourceViews ?? 0}
+                          icon="👁️"
+                          tone="blue"
+                        />
+                        <StatCard
+                          title="Téléchargements"
+                          value={overview?.totals.resourceDownloads ?? 0}
+                          icon="⬇️"
+                          tone="green"
+                        />
+                        <StatCard
+                          title="Devoirs"
+                          value={overview?.totals.assignments ?? 0}
+                          icon="📝"
+                          tone="pink"
+                        />
+                      </div>
+                    </section>
+
+                    <section className="space-y-3">
+                      <div>
+                        <h2 className="text-lg font-bold text-slate-900">
+                          Indicateurs pédagogiques
+                        </h2>
+                        <p className="text-sm text-slate-500">
+                          Ces indicateurs seront progressivement déplacés vers les espaces professeurs
+                          et direction pédagogique.
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                        <StatCard
+                          title="Taux de remise"
+                          value={formatPercent(overview?.kpis.submissionRate ?? null)}
+                          icon="📈"
+                          tone="slate"
+                        />
+
+                        <div className="bg-white rounded-lg shadow-md p-6 border border-slate-200">
+                          <p className="text-sm text-slate-500">Moyenne globale</p>
+                          <p className="text-3xl font-bold text-slate-900 mt-1">
+                            {formatAverage(overview?.kpis.globalAverage ?? null)}
+                          </p>
+                        </div>
+
+                        <div className="bg-white rounded-lg shadow-md p-6 border border-slate-200">
+                          <p className="text-sm text-slate-500">Rendus uniques</p>
+                          <p className="text-3xl font-bold text-slate-900 mt-1">
+                            {overview?.kpis.deliveredAssignments ?? 0}
+                          </p>
+                        </div>
+
+                        <div className="bg-white rounded-lg shadow-md p-6 border border-slate-200">
+                          <p className="text-sm text-slate-500">Rendus attendus</p>
+                          <p className="text-3xl font-bold text-slate-900 mt-1">
+                            {overview?.kpis.expectedSubmissions ?? 0}
+                          </p>
+                        </div>
+                      </div>
+                    </section>
                   </div>
 
                   <div className="bg-white rounded-lg shadow-md border border-slate-200 overflow-hidden">
                     <div className="p-6 border-b border-slate-200">
                       <h3 className="text-lg font-bold text-slate-900">Performance par matière</h3>
                       <p className="text-sm text-slate-500 mt-1">
-                        Vue d'ensemble des remises et des moyennes par cours
+                        Vue pédagogique temporaire, à déplacer ensuite vers les espaces professeurs
+                        et direction.
                       </p>
                     </div>
 
