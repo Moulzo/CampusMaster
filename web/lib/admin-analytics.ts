@@ -2,8 +2,10 @@ import { apiFetchJson } from "@/lib/auth";
 
 export type AdminAnalyticsOverview = {
   totals: {
+    users: number;
     students: number;
     teachers: number;
+    admins: number;
     courses: number;
     assignments: number;
     submissions: number;

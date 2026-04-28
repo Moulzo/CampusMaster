@@ -26,9 +26,11 @@ export class AdminAnalyticsService {
   }
 
   async getOverview() {
-    const [students, teachers, courses, assignments] = await Promise.all([
+    const [users, students, teachers, admins, courses, assignments] = await Promise.all([
+      this.prisma.user.count(),
       this.prisma.user.count({ where: { role: Role.STUDENT } }),
       this.prisma.user.count({ where: { role: Role.TEACHER } }),
+      this.prisma.user.count({ where: { role: Role.ADMIN } }),
       this.prisma.course.count(),
       this.prisma.assignment.count(),
     ]);
@@ -107,7 +109,15 @@ export class AdminAnalyticsService {
       totalScored > 0 ? Number((totalScore / totalScored).toFixed(2)) : null;
 
     return {
-      totals: { students, teachers, courses, assignments, submissions: totalSubmissions },
+      totals: {
+        users,
+        students,
+        teachers,
+        admins,
+        courses,
+        assignments,
+        submissions: totalSubmissions,
+      },
       kpis: {
         expectedSubmissions: totalExpected,
         deliveredAssignments: totalDelivered,

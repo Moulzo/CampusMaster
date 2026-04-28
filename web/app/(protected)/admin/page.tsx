@@ -103,9 +103,6 @@ export default function AdminPage() {
     };
   }, []);
 
-  const totalUsers = useMemo(() => {
-    return (overview?.totals?.students ?? 0) + (overview?.totals?.teachers ?? 0);
-  }, [overview]);
 
   const sortedCourses = useMemo(() => {
     return [...courses].sort((a, b) => {
@@ -260,9 +257,10 @@ export default function AdminPage() {
               ) : (
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                    <StatCard title="Utilisateurs" value={totalUsers} icon="👥" tone="blue" />
+                    <StatCard title="Utilisateurs" value={overview?.totals.users ?? 0} icon="👥" tone="blue" />
                     <StatCard title="Étudiants" value={overview?.totals.students ?? 0} icon="🎓" tone="green" />
                     <StatCard title="Enseignants" value={overview?.totals.teachers ?? 0} icon="🧑‍🏫" tone="purple" />
+                    <StatCard title="Admins" value={overview?.totals.admins ?? 0} icon="🛡️" tone="slate" />
                     <StatCard title="Cours" value={overview?.totals.courses ?? 0} icon="📚" tone="orange" />
                     <StatCard title="Devoirs" value={overview?.totals.assignments ?? 0} icon="📝" tone="pink" />
                     <StatCard
