@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { adminDeleteUser, adminListUsers, type AdminUser } from "@/lib/admin-users";
 import { UserTable } from "@/components/admin/UserTable";
@@ -18,6 +18,7 @@ export default function AdminUsersPage() {
   ];
 
   const [activeTab, setActiveTab] = useState<UserTab>("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
   const [usersByTab, setUsersByTab] = useState<Partial<Record<UserTab, AdminUser[]>>>({});
   const [loadingByTab, setLoadingByTab] = useState<Partial<Record<UserTab, boolean>>>({});
   const [errorByTab, setErrorByTab] = useState<Partial<Record<UserTab, string | null>>>({});
@@ -25,6 +26,21 @@ export default function AdminUsersPage() {
   const users = usersByTab[activeTab] ?? [];
   const loading = loadingByTab[activeTab] ?? false;
   const error = errorByTab[activeTab] ?? null;
+
+  const filteredUsers = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    if (!query) {
+      return users;
+    }
+
+    return users.filter((user) => {
+      return (
+        user.fullName?.toLowerCase().includes(query) ||
+        user.email?.toLowerCase().includes(query)
+      );
+    });
+  }, [users, searchQuery]);
 
   async function loadTab(tab: UserTab, options?: { force?: boolean }) {
     if (!options?.force && usersByTab[tab]) {
@@ -100,7 +116,41 @@ export default function AdminUsersPage() {
       <div className="text-sm text-zinc-600">
         {loading
           ? "Chargement des utilisateurs..."
-          : `${users.length} utilisateur${users.length > 1 ? "s" : ""} dans cet onglet`}
+          : searchQuery.trim()
+            ? `${filteredUsers.length} résultat${filteredUsers.length > 1 ? "s" : ""} sur ${users.length} utilisateur${users.length > 1 ? "s" : ""}`
+            : `${users.length} utilisateur${users.length > 1 ? "s" : ""} dans cet onglet`}
+      </div>
+
+      <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <label htmlFor="admin-users-search" className="text-sm font-medium text-zinc-700">
+            Rechercher dans l'onglet actif
+          </label>
+          <p className="text-xs text-zinc-500">
+            Recherche par nom ou adresse email.
+          </p>
+        </div>
+
+        <div className="flex w-full gap-2 sm:max-w-md">
+          <input
+            id="admin-users-search"
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Nom ou email..."
+            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          />
+
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50"
+            >
+              Effacer
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2 border-b border-zinc-200">
@@ -113,7 +163,10 @@ export default function AdminUsersPage() {
             <button
               key={tab.value}
               type="button"
-              onClick={() => setActiveTab(tab.value)}
+              onClick={() => {
+                setActiveTab(tab.value);
+                setSearchQuery("");
+              }}
               className={[
                 "rounded-t-lg px-4 py-2 text-sm font-medium transition",
                 active
@@ -140,9 +193,13 @@ export default function AdminUsersPage() {
 
       {!loading && !error && (
         <UserTable
-          users={users}
+          users={filteredUsers}
           onDelete={onDelete}
-          renderEditLink={(id) => <Link className="underline" href={`/admin/users/${id}`}>Modifier</Link>}
+          renderEditLink={(id) => (
+            <Link className="underline" href={`/admin/users/${id}`}>
+              Modifier
+            </Link>
+          )}
         />
       )}
     </div>
