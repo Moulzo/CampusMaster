@@ -26,6 +26,7 @@ export function getNavItems(role: Role): NavItem[] {
       { label: "Tableau de bord", href: "/teacher", icon: "📊", enabled: true },
       { label: "Mes matières", href: "/teacher/subjects", icon: "📚", enabled: true },
       { label: "Devoirs", href: "/teacher/assignments", icon: "📝", enabled: true },
+      { label: "Statistiques", href: "/teacher/analytics", icon: "📈", enabled: true },
       { label: "Messages", href: "/messages", icon: "💬", enabled: true },
     ];
   }
