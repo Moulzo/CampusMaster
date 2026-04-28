@@ -110,3 +110,9 @@ export async function markPrivateConversationAsRead(
     method: "POST",
   });
 }
+
+export async function getUnreadPrivateConversationsCount(): Promise<{
+  count: number;
+}> {
+  return apiFetchJson("/private-messages/unread-conversations-count");
+}

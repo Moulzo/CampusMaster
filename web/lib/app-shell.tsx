@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { logout } from "@/lib/auth";
 import { getNavItems } from "@/lib/nav-items";
+import { getUnreadPrivateConversationsCount } from "@/lib/private-messages";
 import { getRoleLabel } from "@/lib/role-labels";
 import { PrivateMessageToasts } from "@/components/PrivateMessageToasts";
 
@@ -24,6 +25,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopCollapsed, setDesktopCollapsed] = useState(false);
+  const [unreadMessagesBadgeCount, setUnreadMessagesBadgeCount] = useState(0);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("cm:sidebar:collapsed");
@@ -44,6 +46,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [loading, user, router]);
 
+  useEffect(() => {
+    if (!user) return;
+
+    void refreshUnreadMessagesBadge();
+  }, [user, pathname]);
+
+  useEffect(() => {
+    function handleIncomingPrivateMessage() {
+      setUnreadMessagesBadgeCount((current) => current + 1);
+      void refreshUnreadMessagesBadge();
+    }
+
+    window.addEventListener(
+      "private-messages:incoming-local",
+      handleIncomingPrivateMessage,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "private-messages:incoming-local",
+        handleIncomingPrivateMessage,
+      );
+    };
+  }, [user]);
+
   const navItems = useMemo(() => {
     if (!user) return [];
     return getNavItems(user.role);
@@ -55,6 +82,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (user.role === "TEACHER") return "/teacher";
     return "/student";
   }, [user]);
+
+  async function refreshUnreadMessagesBadge() {
+    if (!user) return;
+
+    try {
+      const result = await getUnreadPrivateConversationsCount();
+      setUnreadMessagesBadgeCount(result.count);
+    } catch (error) {
+      console.error("Erreur chargement badge messages:", error);
+    }
+  }
 
   async function handleLogout() {
     try {
@@ -175,6 +213,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       >
                         <span className="w-6 text-center">{item.icon ?? "•"}</span>
                         <span>{item.label}</span>
+                        {item.href === "/messages" && unreadMessagesBadgeCount > 0 && (
+                          <span className="ml-auto inline-flex min-w-[22px] items-center justify-center rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
+                            {unreadMessagesBadgeCount}
+                          </span>
+                        )}
                         {!enabled && (
                           <span className="ml-auto text-xs bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">
                             bientôt
@@ -266,9 +309,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         ].join(" ")}
                         title={desktopCollapsed ? item.label : undefined}
                       >
-                        <span className="w-6 text-center shrink-0">{item.icon ?? "•"}</span>
+                        <span className="relative w-6 shrink-0 text-center">
+                          {item.icon ?? "•"}
+
+                          {desktopCollapsed &&
+                            item.href === "/messages" &&
+                            unreadMessagesBadgeCount > 0 && (
+                              <span className="absolute -right-2 -top-2 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                                {unreadMessagesBadgeCount}
+                              </span>
+                            )}
+                        </span>
 
                         {!desktopCollapsed && <span>{item.label}</span>}
+
+                        {!desktopCollapsed &&
+                          item.href === "/messages" &&
+                          unreadMessagesBadgeCount > 0 && (
+                            <span className="ml-auto inline-flex min-w-[22px] items-center justify-center rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
+                              {unreadMessagesBadgeCount}
+                            </span>
+                          )}
 
                         {!desktopCollapsed && !enabled && (
                           <span className="ml-auto text-xs bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">

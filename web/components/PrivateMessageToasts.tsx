@@ -66,6 +66,12 @@ export function PrivateMessageToasts() {
     socket.on("private-messages:incoming", (payload: PrivateMessageToastPayload) => {
       console.log("PRIVATE MESSAGE TOAST RECEIVED", payload);
 
+      window.dispatchEvent(
+        new CustomEvent("private-messages:incoming-local", {
+          detail: payload,
+        }),
+      );
+
       // Sur /messages, le fil et les badges sont déjà gérés directement.
       if (pathname === "/messages") {
         return;
