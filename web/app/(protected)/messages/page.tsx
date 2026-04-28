@@ -34,6 +34,51 @@ function formatDateTime(dateString: string) {
   });
 }
 
+function formatMessageDateSeparator(dateString: string) {
+  const date = new Date(dateString);
+  const today = new Date();
+
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+
+  const isSameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+
+  if (isSameDay(date, today)) {
+    return "Aujourd'hui";
+  }
+
+  if (isSameDay(date, yesterday)) {
+    return "Hier";
+  }
+
+  return date.toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function shouldShowDateSeparator(
+  messages: PrivateConversationDetail["messages"],
+  index: number,
+) {
+  if (index === 0) {
+    return true;
+  }
+
+  const currentDate = new Date(messages[index].createdAt);
+  const previousDate = new Date(messages[index - 1].createdAt);
+
+  return (
+    currentDate.getFullYear() !== previousDate.getFullYear() ||
+    currentDate.getMonth() !== previousDate.getMonth() ||
+    currentDate.getDate() !== previousDate.getDate()
+  );
+}
+
 function conversationTitle(
   conversation: PrivateConversationListItem | PrivateConversationDetail,
   currentUserId?: string,
@@ -132,29 +177,6 @@ function socketStatusClass(status: "connecting" | "connected" | "disconnected") 
   }
 }
 
-function isNearBottom() {
-  const container = document.querySelector('[data-scroll-container="messages"]') as HTMLElement;
-
-  if (!container) {
-    return true;
-  }
-
-  const distanceFromBottom =
-    container.scrollHeight - container.scrollTop - container.clientHeight;
-
-  return distanceFromBottom < 120;
-}
-
-function scrollToBottom(behavior: ScrollBehavior = "smooth") {
-  window.requestAnimationFrame(() => {
-    const element = document.querySelector('[data-scroll-end="messages"]') as HTMLElement;
-    element?.scrollIntoView({
-      behavior,
-      block: "end",
-    });
-  });
-}
-
 function findFirstUnreadMessageId(
   conversation: PrivateConversationDetail,
   currentUserId?: string,
@@ -183,36 +205,6 @@ function findFirstUnreadMessageId(
       return new Date(message.createdAt).getTime() > lastReadTime;
     })?.id ?? null
   );
-}
-
-function scrollToFirstUnreadOrBottom(
-  conversation: PrivateConversationDetail,
-  currentUserId?: string,
-  lastReadAt?: string | null,
-  behavior: ScrollBehavior = "auto",
-) {
-  const firstUnreadMessageId = findFirstUnreadMessageId(
-    conversation,
-    currentUserId,
-    lastReadAt,
-  );
-
-  if (firstUnreadMessageId) {
-    const element = document.getElementById(
-      `private-message-${firstUnreadMessageId}`,
-    );
-
-    if (element) {
-      // Utiliser directement scrollIntoView sans requestAnimationFrame
-      element.scrollIntoView({
-        behavior,
-        block: "center",
-      });
-      return;
-    }
-  }
-
-  scrollToBottom(behavior);
 }
 
 export default function MessagesPage() {
@@ -316,12 +308,58 @@ export default function MessagesPage() {
     };
   }, [shouldScrollToBottom, scrollBehavior, unreadScrollInfo]);
 
-  // Effect pour gérer le scroll quand la conversation change
-  // Utilise useLayoutEffect + setTimeout pour garantir que le DOM est prêt
-  useLayoutEffect(() => {
-    // IMPORTANT: Réinitialiser la ref en PREMIER
-    scrollExecutedRef.current = false;
+  function isNearBottom() {
+    const container = messagesContainerRef.current;
 
+    if (!container) {
+      return true;
+    }
+
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+
+    return distanceFromBottom < 120;
+  }
+
+  function scrollToBottom(behavior: ScrollBehavior = "smooth") {
+    window.requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({
+        behavior,
+        block: "end",
+      });
+    });
+  }
+
+  function scrollToFirstUnreadOrBottom(
+    conversation: PrivateConversationDetail,
+    currentUserId?: string,
+    lastReadAt?: string | null,
+    behavior: ScrollBehavior = "auto",
+  ) {
+    const firstUnreadMessageId = findFirstUnreadMessageId(
+      conversation,
+      currentUserId,
+      lastReadAt,
+    );
+
+    if (firstUnreadMessageId) {
+      const element = document.getElementById(
+        `private-message-${firstUnreadMessageId}`,
+      );
+
+      if (element) {
+        element.scrollIntoView({
+          behavior,
+          block: "center",
+        });
+        return;
+      }
+    }
+
+    scrollToBottom(behavior);
+  }
+
+  useLayoutEffect(() => {
     if (!selectedConversation) return;
 
     // Attendre que le DOM soit prêt avec un délai
@@ -362,9 +400,7 @@ export default function MessagesPage() {
 
   // Tracker si on est près du bottom du container de messages
   useEffect(() => {
-    const container = document.querySelector(
-      '[data-scroll-container="messages"]',
-    ) as HTMLElement;
+    const container = messagesContainerRef.current;
 
     if (!container) return;
 
@@ -626,9 +662,7 @@ export default function MessagesPage() {
       return;
     }
 
-    const container = document.querySelector(
-      '[data-scroll-container="messages"]',
-    ) as HTMLElement | null;
+    const container = messagesContainerRef.current;
 
     const previousScrollHeight = container?.scrollHeight ?? 0;
     const previousScrollTop = container?.scrollTop ?? 0;
@@ -937,7 +971,11 @@ export default function MessagesPage() {
                 </p>
               </div>
 
-              <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4" data-scroll-container="messages">
+              <div
+                ref={messagesContainerRef}
+                className="flex-1 space-y-4 overflow-y-auto px-5 py-4"
+                data-scroll-container="messages"
+              >
                 {hasMoreMessagesBefore && (
                   <div className="flex justify-center pb-2">
                     <button
@@ -956,6 +994,10 @@ export default function MessagesPage() {
                   <>
                     {selectedConversation.messages.map((message, index) => {
                       const isMine = message.senderId === user?.id;
+                      const showDateSeparator = shouldShowDateSeparator(
+                        selectedConversation.messages,
+                        index,
+                      );
 
                       const markerTime = shouldShowUnreadMarker
                         ? unreadMarkerLastReadAt
@@ -978,6 +1020,14 @@ export default function MessagesPage() {
 
                       return (
                         <div key={message.id}>
+                          {showDateSeparator && (
+                            <div className="my-4 flex justify-center">
+                              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
+                                {formatMessageDateSeparator(message.createdAt)}
+                              </span>
+                            </div>
+                          )}
+
                           {isFirstUnreadMessage && (
                             <div className="my-4 flex items-center gap-3">
                               <div className="h-px flex-1 bg-blue-300" />
@@ -1018,7 +1068,7 @@ export default function MessagesPage() {
                     })}
                   </>
                 )}
-                <div data-scroll-end="messages" />
+                <div ref={messagesEndRef} data-scroll-end="messages" />
               </div>
 
               {hasPendingNewMessages && (
