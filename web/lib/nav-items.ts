@@ -18,7 +18,6 @@ export function getNavItems(role: Role): NavItem[] {
       { label: "Matières", href: "/admin/subjects", icon: "📖", enabled: true },
       { label: "Statistiques", href: "/admin/analytics", icon: "📈", enabled: true },
       { label: "Messages", href: "/messages", icon: "💬", enabled: true },
-      { label: "Test WS", href: "/test-notifications", icon: "🌐", enabled: true },
     ];
   }
 
