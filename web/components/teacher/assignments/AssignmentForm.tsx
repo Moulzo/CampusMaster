@@ -5,6 +5,7 @@ import { getCourses } from "@/lib/courses";
 import { createAssignment, uploadFile } from "@/lib/assignments";
 import { useToast } from "@/lib/toast";
 import { formatFileSize } from "@/lib/file-size";
+import { openFileInBrowser, canPreviewInBrowser } from "@/lib/file-preview";
 
 type Props = {
   defaultCourseId?: string;
@@ -209,6 +210,15 @@ export function AssignmentForm({ defaultCourseId, onCreated }: Props) {
                 </p>
               ) : null;
             })()}
+            {attachment.url && (
+              <button
+                type="button"
+                onClick={() => void openFileInBrowser(attachment.url)}
+                className="mt-2 text-xs font-medium text-blue-700 underline hover:text-blue-900"
+              >
+                {canPreviewInBrowser(attachment.type, attachment.name) ? "Consulter le fichier" : "Ouvrir le fichier"}
+              </button>
+            )}
           </div>
         )}
       </div>

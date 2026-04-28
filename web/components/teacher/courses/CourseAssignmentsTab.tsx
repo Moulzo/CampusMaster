@@ -6,6 +6,7 @@ import { getAssignments, deleteAssignment, getSubmissions, gradeSubmission } fro
 import { AssignmentForm } from "@/components/teacher/assignments/AssignmentForm";
 import { downloadWithAuth } from "@/lib/download";
 import { formatFileSize } from "@/lib/file-size";
+import { openFileInBrowser, canPreviewInBrowser } from "@/lib/file-preview";
 
 function extractFiles(submission: any): Array<{ url: string; name?: string; size?: number; type?: string }> {
   // cas 1: tu as déjà un tableau (Prisma Json)
@@ -226,12 +227,22 @@ export function CourseAssignmentsTab({ courseId }: { courseId: string }) {
                                             ) : null;
                                           })()}
                                         </div>
-                                        <button
-                                          onClick={() => downloadWithAuth(file.url, file.name)}
-                                          className="shrink-0 px-3 py-1 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition"
-                                        >
-                                          Télécharger
-                                        </button>
+                                        <div className="flex shrink-0 gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => void openFileInBrowser(file.url)}
+                                            className="px-3 py-1 text-xs font-medium bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition"
+                                          >
+                                            {canPreviewInBrowser(file.type, file.name) ? "Consulter" : "Ouvrir"}
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => downloadWithAuth(file.url, file.name)}
+                                            className="px-3 py-1 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition"
+                                          >
+                                            Télécharger
+                                          </button>
+                                        </div>
                                       </div>
                                     ))}
                                   </div>
