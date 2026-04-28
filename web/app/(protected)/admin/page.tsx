@@ -262,6 +262,9 @@ export default function AdminPage() {
                     <StatCard title="Enseignants" value={overview?.totals.teachers ?? 0} icon="🧑‍🏫" tone="purple" />
                     <StatCard title="Admins" value={overview?.totals.admins ?? 0} icon="🛡️" tone="slate" />
                     <StatCard title="Cours" value={overview?.totals.courses ?? 0} icon="📚" tone="orange" />
+                    <StatCard title="Ressources" value={overview?.totals.resources ?? 0} icon="📎" tone="orange" />
+                    <StatCard title="Consultations" value={overview?.totals.resourceViews ?? 0} icon="👁️" tone="blue" />
+                    <StatCard title="Téléchargements" value={overview?.totals.resourceDownloads ?? 0} icon="⬇️" tone="green" />
                     <StatCard title="Devoirs" value={overview?.totals.assignments ?? 0} icon="📝" tone="pink" />
                     <StatCard
                       title="Taux de remise"

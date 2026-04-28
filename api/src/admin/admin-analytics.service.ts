@@ -26,13 +26,26 @@ export class AdminAnalyticsService {
   }
 
   async getOverview() {
-    const [users, students, teachers, admins, courses, assignments] = await Promise.all([
+    const [
+      users,
+      students,
+      teachers,
+      admins,
+      courses,
+      assignments,
+      resources,
+      resourceViews,
+      resourceDownloads,
+    ] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.user.count({ where: { role: Role.STUDENT } }),
       this.prisma.user.count({ where: { role: Role.TEACHER } }),
       this.prisma.user.count({ where: { role: Role.ADMIN } }),
       this.prisma.course.count(),
       this.prisma.assignment.count(),
+      this.prisma.courseResource.count(),
+      this.prisma.resourceViewEvent.count(),
+      this.prisma.resourceDownloadEvent.count(),
     ]);
 
     // Récupérer tous les cours avec leurs infos de semestre
@@ -117,6 +130,9 @@ export class AdminAnalyticsService {
         courses,
         assignments,
         submissions: totalSubmissions,
+        resources,
+        resourceViews,
+        resourceDownloads,
       },
       kpis: {
         expectedSubmissions: totalExpected,

@@ -9,6 +9,9 @@ export type AdminAnalyticsOverview = {
     courses: number;
     assignments: number;
     submissions: number;
+    resources: number;
+    resourceViews: number;
+    resourceDownloads: number;
   };
   kpis: {
     expectedSubmissions: number;
