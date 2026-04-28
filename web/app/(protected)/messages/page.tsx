@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { io, type Socket } from "socket.io-client";
 import { getAccessToken } from "@/lib/auth";
@@ -44,6 +44,15 @@ function conversationTitle(
   return others.join(", ");
 }
 
+function getInitialConversationIdFromUrl() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  return params.get("conversationId") ?? "";
+}
+
 type IncomingPrivateMessagePayload = {
   conversationId: string;
   message: PrivateConversationDetail["messages"][number];
@@ -69,14 +78,13 @@ function updateConversationPreview(
   conversations: PrivateConversationListItem[],
   payload: IncomingPrivateMessagePayload,
   currentUserId?: string,
-  selectedConversationId?: string,
+  shouldTreatAsRead = false,
 ): PrivateConversationListItem[] {
   const nextConversations = conversations.map((conversation) => {
     if (conversation.id !== payload.conversationId) {
       return conversation;
     }
 
-    const isCurrentConversation = conversation.id === selectedConversationId;
     const isMessageFromMe = payload.message.senderId === currentUserId;
 
     return {
@@ -89,7 +97,7 @@ function updateConversationPreview(
         sender: payload.message.sender,
       },
       unreadCount:
-        isCurrentConversation || isMessageFromMe
+        shouldTreatAsRead || isMessageFromMe
           ? 0
           : conversation.unreadCount + 1,
     };
@@ -122,6 +130,89 @@ function socketStatusClass(status: "connecting" | "connected" | "disconnected") 
   }
 }
 
+function isNearBottom() {
+  const container = document.querySelector('[data-scroll-container="messages"]') as HTMLElement;
+
+  if (!container) {
+    return true;
+  }
+
+  const distanceFromBottom =
+    container.scrollHeight - container.scrollTop - container.clientHeight;
+
+  return distanceFromBottom < 120;
+}
+
+function scrollToBottom(behavior: ScrollBehavior = "smooth") {
+  window.requestAnimationFrame(() => {
+    const element = document.querySelector('[data-scroll-end="messages"]') as HTMLElement;
+    element?.scrollIntoView({
+      behavior,
+      block: "end",
+    });
+  });
+}
+
+function findFirstUnreadMessageId(
+  conversation: PrivateConversationDetail,
+  currentUserId?: string,
+  lastReadAt?: string | null,
+) {
+  if (!currentUserId) {
+    return null;
+  }
+
+  if (!lastReadAt) {
+    const firstReceivedMessage = conversation.messages.find(
+      (message) => message.senderId !== currentUserId,
+    );
+
+    return firstReceivedMessage?.id ?? null;
+  }
+
+  const lastReadTime = new Date(lastReadAt).getTime();
+
+  return (
+    conversation.messages.find((message) => {
+      if (message.senderId === currentUserId) {
+        return false;
+      }
+
+      return new Date(message.createdAt).getTime() > lastReadTime;
+    })?.id ?? null
+  );
+}
+
+function scrollToFirstUnreadOrBottom(
+  conversation: PrivateConversationDetail,
+  currentUserId?: string,
+  lastReadAt?: string | null,
+  behavior: ScrollBehavior = "auto",
+) {
+  const firstUnreadMessageId = findFirstUnreadMessageId(
+    conversation,
+    currentUserId,
+    lastReadAt,
+  );
+
+  if (firstUnreadMessageId) {
+    const element = document.getElementById(
+      `private-message-${firstUnreadMessageId}`,
+    );
+
+    if (element) {
+      // Utiliser directement scrollIntoView sans requestAnimationFrame
+      element.scrollIntoView({
+        behavior,
+        block: "center",
+      });
+      return;
+    }
+  }
+
+  scrollToBottom(behavior);
+}
+
 export default function MessagesPage() {
   const { user } = useAuth();
 
@@ -129,6 +220,9 @@ export default function MessagesPage() {
   const selectedConversationIdRef = useRef("");
   const currentUserIdRef = useRef<string | undefined>(undefined);
   const joinedConversationIdsRef = useRef<Set<string>>(new Set());
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const isConversationPanelOpenRef = useRef(false);
 
   const [conversations, setConversations] = useState<PrivateConversationListItem[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState("");
@@ -150,6 +244,28 @@ export default function MessagesPage() {
     "connecting" | "connected" | "disconnected"
   >("connecting");
   const [isConversationPanelOpen, setIsConversationPanelOpen] = useState(false);
+  const [hasPendingNewMessages, setHasPendingNewMessages] = useState(false);
+  const [pendingLastReadAt, setPendingLastReadAt] = useState<string | null>(null);
+  const [unreadMarkerLastReadAt, setUnreadMarkerLastReadAt] = useState<string | null>(null);
+  const [shouldShowUnreadMarker, setShouldShowUnreadMarker] = useState(false);
+  const [isNearMessagesBottom, setIsNearMessagesBottom] = useState(true);
+  const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false);
+  const [scrollBehavior, setScrollBehavior] = useState<ScrollBehavior>("auto");
+  const [unreadScrollInfo, setUnreadScrollInfo] = useState<{
+    lastReadAt: string | null;
+    behavior: ScrollBehavior;
+  } | null>(null);
+  const scrollExecutedRef = useRef(false);
+  const scrollInfoRef = useRef<{
+    shouldScrollToBottom: boolean;
+    scrollBehavior: ScrollBehavior;
+    unreadScrollInfo: { lastReadAt: string | null; behavior: ScrollBehavior } | null;
+  }>({
+    shouldScrollToBottom: false,
+    scrollBehavior: "auto",
+    unreadScrollInfo: null,
+  });
+  const currentLastReadAtRef = useRef<string | null>(null);
 
   useEffect(() => {
     selectedConversationIdRef.current = selectedConversationId;
@@ -158,6 +274,104 @@ export default function MessagesPage() {
   useEffect(() => {
     currentUserIdRef.current = user?.id;
   }, [user?.id]);
+
+  useEffect(() => {
+    isConversationPanelOpenRef.current = isConversationPanelOpen;
+  }, [isConversationPanelOpen]);
+
+  // Mettre à jour le lastReadAt ref pour l'utiliser dans le socket handler
+  useEffect(() => {
+    if (!selectedConversationId || !conversations.length) {
+      currentLastReadAtRef.current = null;
+      return;
+    }
+
+    const conversationMeta = conversations.find(
+      (c) => c.id === selectedConversationId,
+    );
+
+    if (!conversationMeta) {
+      currentLastReadAtRef.current = null;
+      return;
+    }
+
+    const participant = conversationMeta.participants.find(
+      (p) => p.userId === user?.id,
+    );
+
+    currentLastReadAtRef.current = participant?.lastReadAt ?? null;
+  }, [selectedConversationId, conversations, user?.id]);
+
+  // Mettre à jour la ref avec les valeurs actuelles des flags de scroll
+  useEffect(() => {
+    scrollInfoRef.current = {
+      shouldScrollToBottom,
+      scrollBehavior,
+      unreadScrollInfo,
+    };
+  }, [shouldScrollToBottom, scrollBehavior, unreadScrollInfo]);
+
+  // Effect pour gérer le scroll quand la conversation change
+  // Utilise useLayoutEffect + setTimeout pour garantir que le DOM est prêt
+  useLayoutEffect(() => {
+    // IMPORTANT: Réinitialiser la ref en PREMIER
+    scrollExecutedRef.current = false;
+
+    if (!selectedConversation) return;
+
+    // Attendre que le DOM soit prêt avec un délai
+    const timer = window.setTimeout(() => {
+      if (scrollExecutedRef.current) return;
+
+      // Vérifier le state actuel depuis les refs (plus fiable que les dépendances)
+      const hasUnread = scrollInfoRef.current.unreadScrollInfo !== null;
+      const shouldBottom = scrollInfoRef.current.shouldScrollToBottom;
+
+      if (shouldBottom) {
+        scrollToBottom(scrollInfoRef.current.scrollBehavior);
+        scrollExecutedRef.current = true;
+      } else if (hasUnread && selectedConversation) {
+        const unreadInfo = scrollInfoRef.current.unreadScrollInfo;
+        if (unreadInfo) {
+          scrollToFirstUnreadOrBottom(
+            selectedConversation,
+            currentUserIdRef.current,
+            unreadInfo.lastReadAt,
+            unreadInfo.behavior,
+          );
+          scrollExecutedRef.current = true;
+        }
+      }
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [selectedConversation?.id]);
+
+  // Reset des states de scroll et pending messages quand conversation change
+  // Exécuté APRÈS le useLayoutEffect de scroll
+  useEffect(() => {
+    setPendingLastReadAt(null);
+    setHasPendingNewMessages(false);
+    setIsNearMessagesBottom(true);
+  }, [selectedConversation?.id]);
+
+  // Tracker si on est près du bottom du container de messages
+  useEffect(() => {
+    const container = document.querySelector(
+      '[data-scroll-container="messages"]',
+    ) as HTMLElement;
+
+    if (!container) return;
+
+    const handleScroll = () => {
+      const distanceFromBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight;
+      setIsNearMessagesBottom(distanceFromBottom < 120);
+    };
+
+    container.addEventListener("scroll", handleScroll);
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, []);
 
   function joinConversationRooms(conversationsToJoin: PrivateConversationListItem[]) {
     const socket = socketRef.current;
@@ -177,7 +391,7 @@ export default function MessagesPage() {
     });
   }
 
-  async function refreshConversations(preferredConversationId?: string) {
+  async function refreshConversations() {
     setLoadingList(true);
     setError("");
 
@@ -186,11 +400,6 @@ export default function MessagesPage() {
 
       joinConversationRooms(data);
       setConversations(data);
-
-      const nextSelectedId =
-        preferredConversationId || selectedConversationId || data[0]?.id || "";
-
-      setSelectedConversationId(nextSelectedId);
     } catch (e: any) {
       setError(e?.message ?? "Erreur lors du chargement des conversations.");
     } finally {
@@ -199,19 +408,69 @@ export default function MessagesPage() {
   }
 
   async function loadConversation(conversationId: string) {
+    setIsConversationPanelOpen(true);
+
     if (!conversationId) {
       setSelectedConversation(null);
+      setSelectedConversationId("");
       return;
     }
 
+    setSelectedConversationId(conversationId);
     setLoadingConversation(true);
     setError("");
 
     try {
+      const conversationBeforeRead = conversations.find(
+        (conversation) => conversation.id === conversationId,
+      );
+
+      const participantBeforeRead = conversationBeforeRead?.participants.find(
+        (participant) => participant.userId === currentUserIdRef.current,
+      );
+
+      const lastReadAtBeforeRead = participantBeforeRead?.lastReadAt ?? null;
+      const hasUnreadBeforeRead = (conversationBeforeRead?.unreadCount ?? 0) > 0;
+
       const detail = await getPrivateConversation(conversationId);
+
       setSelectedConversation(detail);
+      setShouldShowUnreadMarker(hasUnreadBeforeRead);
+      setUnreadMarkerLastReadAt(lastReadAtBeforeRead);
+      setHasPendingNewMessages(false);
+
+      // Planifier le scroll via les effects au lieu de le faire directement
+      // Cela évite une race condition avec les re-renders
+      if (hasUnreadBeforeRead && lastReadAtBeforeRead) {
+        setUnreadScrollInfo({
+          lastReadAt: lastReadAtBeforeRead,
+          behavior: "auto",
+        });
+      } else {
+        setShouldScrollToBottom(true);
+        setScrollBehavior("auto");
+      }
+
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+
+        if (url.searchParams.get("conversationId") === conversationId) {
+          url.searchParams.delete("conversationId");
+          window.history.replaceState(null, "", url.toString());
+        }
+      }
+
       await markPrivateConversationAsRead(conversationId);
-      await refreshConversations(conversationId);
+
+      setConversations((current) =>
+        current.map((conversation) =>
+          conversation.id === conversationId
+            ? { ...conversation, unreadCount: 0 }
+            : conversation,
+        ),
+      );
+
+      await refreshConversations();
     } catch (e: any) {
       setError(e?.message ?? "Erreur lors du chargement de la conversation.");
     } finally {
@@ -220,16 +479,16 @@ export default function MessagesPage() {
   }
 
   useEffect(() => {
-    refreshConversations();
-  }, []);
+    const initialConversationId = getInitialConversationIdFromUrl();
 
-  useEffect(() => {
-    if (selectedConversationId) {
-      loadConversation(selectedConversationId);
-    } else {
-      setSelectedConversation(null);
+    if (initialConversationId) {
+      setIsConversationPanelOpen(true);
+      void loadConversation(initialConversationId);
+      return;
     }
-  }, [selectedConversationId]);
+
+    void refreshConversations();
+  }, []);
 
   useEffect(() => {
     const token = getAccessToken();
@@ -275,6 +534,13 @@ export default function MessagesPage() {
       "private-messages:new-message",
       (payload: IncomingPrivateMessagePayload) => {
         const currentSelectedConversationId = selectedConversationIdRef.current;
+        const isConversationOpen =
+          isConversationPanelOpenRef.current &&
+          payload.conversationId === currentSelectedConversationId;
+
+        const shouldAutoScroll =
+          isConversationOpen &&
+          (payload.message.senderId === currentUserIdRef.current || isNearBottom());
 
         setSelectedConversation((current) => {
           if (!current || current.id !== payload.conversationId) {
@@ -289,20 +555,29 @@ export default function MessagesPage() {
             current,
             payload,
             currentUserIdRef.current,
-            currentSelectedConversationId,
+            shouldAutoScroll,
           ),
         );
 
-        if (payload.conversationId === currentSelectedConversationId) {
-          void markPrivateConversationAsRead(payload.conversationId);
+        if (isConversationOpen) {
+          if (shouldAutoScroll) {
+            void markPrivateConversationAsRead(payload.conversationId);
 
-          setConversations((current) =>
-            current.map((conversation) =>
-              conversation.id === payload.conversationId
-                ? { ...conversation, unreadCount: 0 }
-                : conversation,
-            ),
-          );
+            setConversations((current) =>
+              current.map((conversation) =>
+                conversation.id === payload.conversationId
+                  ? { ...conversation, unreadCount: 0 }
+                  : conversation,
+              ),
+            );
+
+            window.setTimeout(() => scrollToBottom("smooth"), 0);
+            setHasPendingNewMessages(false);
+          } else {
+            // Stocker le lastReadAt actuel pour le bouton "Nouveaux messages"
+            setPendingLastReadAt(currentLastReadAtRef.current);
+            setHasPendingNewMessages(true);
+          }
         }
       },
     );
@@ -356,7 +631,7 @@ export default function MessagesPage() {
     try {
       await sendPrivateMessage(selectedConversationId, content);
       setNewMessage("");
-      await refreshConversations(selectedConversationId);
+      await refreshConversations();
     } catch (e: any) {
       setError(e?.message ?? "Erreur lors de l'envoi du message.");
     } finally {
@@ -375,7 +650,7 @@ export default function MessagesPage() {
       setSelectedUser(null);
       setSearchTerm("");
       setSearchResults([]);
-      await refreshConversations(conversation.id);
+      await refreshConversations();
       await loadConversation(conversation.id);
     } catch (e: any) {
       setError(e?.message ?? "Erreur lors de la création de la conversation.");
@@ -490,25 +765,32 @@ export default function MessagesPage() {
                 {conversations.map((conversation) => {
                   const active = conversation.id === selectedConversationId;
                   const title = conversationTitle(conversation, user?.id);
+                  const hasUnread = conversation.unreadCount > 0;
 
                   return (
                     <li key={conversation.id}>
                       <button
                         type="button"
                         onClick={() => {
-                          setSelectedConversationId(conversation.id);
-                          setIsConversationPanelOpen(true);
+                          void loadConversation(conversation.id);
                         }}
                         className={[
                           "w-full rounded-lg border px-3 py-3 text-left transition",
                           active
                             ? "border-blue-200 bg-blue-50"
-                            : "border-transparent hover:bg-slate-50",
+                            : hasUnread
+                              ? "border-blue-200 bg-blue-50/60 hover:bg-blue-50"
+                              : "border-transparent hover:bg-slate-50",
                         ].join(" ")}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
-                            <div className="truncate font-medium text-slate-900">
+                            <div
+                              className={[
+                                "truncate text-sm",
+                                hasUnread ? "font-bold text-slate-950" : "font-medium text-slate-900",
+                              ].join(" ")}
+                            >
                               {title}
                             </div>
                             <div className="mt-1 truncate text-xs text-slate-500">
@@ -521,8 +803,8 @@ export default function MessagesPage() {
                             </div>
                           </div>
 
-                          {conversation.unreadCount > 0 && (
-                            <span className="inline-flex min-w-[24px] justify-center rounded-full bg-blue-600 px-2 py-0.5 text-xs font-semibold text-white">
+                          {hasUnread && (
+                            <span className="inline-flex min-w-[24px] shrink-0 items-center justify-center rounded-full bg-blue-600 px-2 py-0.5 text-xs font-bold text-white shadow-sm">
                               {conversation.unreadCount}
                             </span>
                           )}
@@ -558,7 +840,9 @@ export default function MessagesPage() {
               <div className="border-b border-slate-200 px-5 py-4">
                 <button
                   type="button"
-                  onClick={() => setIsConversationPanelOpen(false)}
+                  onClick={() => {
+                    setIsConversationPanelOpen(false);
+                  }}
                   className="mb-3 inline-flex items-center rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 lg:hidden"
                 >
                   ← Retour aux conversations
@@ -572,42 +856,106 @@ export default function MessagesPage() {
                 </p>
               </div>
 
-              <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+              <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4" data-scroll-container="messages">
                 {selectedConversation.messages.length === 0 ? (
                   <div className="text-sm text-slate-500">Aucun message pour le moment.</div>
                 ) : (
-                  selectedConversation.messages.map((message) => {
-                    const isMine = message.senderId === user?.id;
+                  <>
+                    {selectedConversation.messages.map((message, index) => {
+                      const isMine = message.senderId === user?.id;
 
-                    return (
-                      <div
-                        key={message.id}
-                        className={`flex ${isMine ? "justify-end" : "justify-start"}`}
-                      >
-                        <div
-                          className={[
-                            "max-w-[75%] rounded-2xl px-4 py-3 shadow-sm",
-                            isMine
-                              ? "bg-blue-600 text-white"
-                              : "border border-slate-200 bg-slate-50 text-slate-900",
-                          ].join(" ")}
-                        >
+                      const markerTime = shouldShowUnreadMarker
+                        ? unreadMarkerLastReadAt
+                          ? new Date(unreadMarkerLastReadAt).getTime()
+                          : 0
+                        : null;
+
+                      const messageTime = new Date(message.createdAt).getTime();
+
+                      const previousMessage = selectedConversation.messages[index - 1];
+                      const previousMessageTime = previousMessage
+                        ? new Date(previousMessage.createdAt).getTime()
+                        : null;
+
+                      const isFirstUnreadMessage =
+                        !isMine &&
+                        markerTime !== null &&
+                        messageTime > markerTime &&
+                        (previousMessageTime === null || previousMessageTime <= markerTime);
+
+                      return (
+                        <div key={message.id}>
+                          {isFirstUnreadMessage && (
+                            <div className="my-4 flex items-center gap-3">
+                              <div className="h-px flex-1 bg-blue-300" />
+                              <span className="whitespace-nowrap rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                                Messages non lus
+                              </span>
+                              <div className="h-px flex-1 bg-blue-300" />
+                            </div>
+                          )}
+
                           <div
-                            className={`mb-1 text-xs ${
-                              isMine ? "text-blue-100" : "text-slate-500"
-                            }`}
+                            id={`private-message-${message.id}`}
+                            className={`flex ${isMine ? "justify-end" : "justify-start"}`}
                           >
-                            {message.sender.fullName} • {formatDateTime(message.createdAt)}
-                          </div>
-                          <div className="whitespace-pre-wrap text-sm">
-                            {message.content}
+                            <div
+                              className={[
+                                "max-w-[75%] rounded-2xl px-4 py-3 shadow-sm",
+                                isMine
+                                  ? "bg-blue-600 text-white"
+                                  : "border border-slate-200 bg-slate-50 text-slate-900",
+                              ].join(" ")}
+                            >
+                              <div
+                                className={`mb-1 text-xs ${
+                                  isMine ? "text-blue-100" : "text-slate-500"
+                                }`}
+                              >
+                                {message.sender.fullName} • {formatDateTime(message.createdAt)}
+                              </div>
+
+                              <div className="whitespace-pre-wrap text-sm">
+                                {message.content}
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })
+                      );
+                    })}
+                  </>
                 )}
+                <div data-scroll-end="messages" />
               </div>
+
+              {hasPendingNewMessages && (
+                <div className="flex justify-center border-t border-gray-100 bg-white px-4 py-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedConversation) {
+                        scrollToBottom("smooth");
+
+                        void markPrivateConversationAsRead(selectedConversation.id);
+
+                        setConversations((current) =>
+                          current.map((conversation) =>
+                            conversation.id === selectedConversation.id
+                              ? { ...conversation, unreadCount: 0 }
+                              : conversation,
+                          ),
+                        );
+                      }
+
+                      setHasPendingNewMessages(false);
+                      setPendingLastReadAt(null);
+                    }}
+                    className="rounded-full bg-blue-600 px-4 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
+                  >
+                    Nouveaux messages
+                  </button>
+                </div>
+              )}
 
               <div className="border-t border-slate-200 px-5 py-4">
                 <div className="flex gap-3">
