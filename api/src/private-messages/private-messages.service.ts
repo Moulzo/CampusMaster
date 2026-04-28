@@ -231,28 +231,27 @@ export class PrivateMessagesService {
     return this.getConversation(conversation.id, currentUserId);
   }
 
-  async getConversation(conversationId: string, currentUserId: string) {
+  async getConversation(
+    conversationId: string,
+    currentUserId: string,
+    limit = 30,
+    before?: string,
+  ) {
     await this.assertConversationParticipant(conversationId, currentUserId);
 
-    const conversation = await this.prisma.privateConversation.findUnique({
-      where: { id: conversationId },
+    const conversation = await this.prisma.privateConversation.findFirst({
+      where: {
+        id: conversationId,
+        participants: {
+          some: {
+            userId: currentUserId,
+          },
+        },
+      },
       include: {
         participants: {
           include: {
             user: {
-              select: {
-                id: true,
-                fullName: true,
-                email: true,
-                role: true,
-              },
-            },
-          },
-        },
-        messages: {
-          orderBy: { createdAt: 'asc' },
-          include: {
-            sender: {
               select: {
                 id: true,
                 fullName: true,
@@ -269,6 +268,44 @@ export class PrivateMessagesService {
       throw new NotFoundException('Conversation introuvable');
     }
 
+    const safeLimit = Math.min(Math.max(Number(limit) || 30, 1), 50);
+
+    const messagesDesc = await this.prisma.privateMessage.findMany({
+      where: {
+        conversationId,
+        ...(before
+          ? {
+              createdAt: {
+                lt: new Date(before),
+              },
+            }
+          : {}),
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: safeLimit + 1,
+      include: {
+        sender: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    const hasMoreBefore = messagesDesc.length > safeLimit;
+    const pageMessagesDesc = hasMoreBefore
+      ? messagesDesc.slice(0, safeLimit)
+      : messagesDesc;
+
+    const messages = pageMessagesDesc.reverse();
+
+    const nextBefore = messages[0]?.createdAt?.toISOString() ?? null;
+
     return {
       id: conversation.id,
       createdAt: conversation.createdAt,
@@ -279,7 +316,7 @@ export class PrivateMessagesService {
         lastReadAt: p.lastReadAt,
         user: p.user,
       })),
-      messages: conversation.messages.map((m) => ({
+      messages: messages.map((m) => ({
         id: m.id,
         content: m.content,
         createdAt: m.createdAt,
@@ -287,6 +324,8 @@ export class PrivateMessagesService {
         senderId: m.senderId,
         sender: m.sender,
       })),
+      hasMoreBefore,
+      nextBefore,
     };
   }
 

@@ -51,6 +51,8 @@ export type PrivateConversationDetail = {
   updatedAt: string;
   participants: PrivateConversationParticipant[];
   messages: PrivateMessage[];
+  hasMoreBefore?: boolean;
+  nextBefore?: string | null;
 };
 
 export async function searchPrivateMessageUsers(
@@ -80,8 +82,26 @@ export async function createPrivateConversation(
 
 export async function getPrivateConversation(
   conversationId: string,
+  options?: {
+    limit?: number;
+    before?: string | null;
+  },
 ): Promise<PrivateConversationDetail> {
-  return apiFetchJson(`/private-messages/conversations/${conversationId}`);
+  const params = new URLSearchParams();
+
+  if (options?.limit) {
+    params.set("limit", String(options.limit));
+  }
+
+  if (options?.before) {
+    params.set("before", options.before);
+  }
+
+  const query = params.toString();
+
+  return apiFetchJson(
+    `/private-messages/conversations/${conversationId}${query ? `?${query}` : ""}`,
+  );
 }
 
 export async function listPrivateMessages(

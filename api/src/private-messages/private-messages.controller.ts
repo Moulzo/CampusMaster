@@ -64,10 +64,32 @@ export class PrivateMessagesController {
 
   @Get('conversations/:id')
   @ApiOperation({ summary: 'Get a specific conversation' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Number of messages to load (default: 30, max: 50)',
+    example: '30',
+  })
+  @ApiQuery({
+    name: 'before',
+    required: false,
+    description: 'Load messages before this timestamp (ISO 8601)',
+    example: '2024-01-01T00:00:00.000Z',
+  })
   @ApiResponse({ status: 200, description: 'Conversation retrieved successfully' })
-  getConversation(@Param('id') id: string, @Req() req: any) {
+  getConversation(
+    @Param('id') id: string,
+    @Req() req: any,
+    @Query('limit') limit?: string,
+    @Query('before') before?: string,
+  ) {
     const currentUserId = req.user.id ?? req.user.sub;
-    return this.privateMessagesService.getConversation(id, currentUserId);
+    return this.privateMessagesService.getConversation(
+      id,
+      currentUserId,
+      limit ? Number(limit) : 30,
+      before,
+    );
   }
 
   @Get('conversations/:id/messages')

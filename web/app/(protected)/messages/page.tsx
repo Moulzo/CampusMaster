@@ -18,6 +18,8 @@ import {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api";
 
+const MESSAGES_PAGE_SIZE = 30;
+
 function getSocketUrl() {
   return API_URL.replace(/\/api$/, "");
 }
@@ -255,6 +257,9 @@ export default function MessagesPage() {
     lastReadAt: string | null;
     behavior: ScrollBehavior;
   } | null>(null);
+  const [hasMoreMessagesBefore, setHasMoreMessagesBefore] = useState(false);
+  const [olderMessagesCursor, setOlderMessagesCursor] = useState<string | null>(null);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const scrollExecutedRef = useRef(false);
   const scrollInfoRef = useRef<{
     shouldScrollToBottom: boolean;
@@ -366,12 +371,23 @@ export default function MessagesPage() {
     const handleScroll = () => {
       const distanceFromBottom =
         container.scrollHeight - container.scrollTop - container.clientHeight;
+
       setIsNearMessagesBottom(distanceFromBottom < 120);
+
+      if (container.scrollTop < 80) {
+        void loadOlderMessages();
+      }
     };
 
     container.addEventListener("scroll", handleScroll);
     return () => container.removeEventListener("scroll", handleScroll);
-  }, []);
+  }, [
+    selectedConversationId,
+    hasMoreMessagesBefore,
+    olderMessagesCursor,
+    loadingOlderMessages,
+    selectedConversation?.id,
+  ]);
 
   function joinConversationRooms(conversationsToJoin: PrivateConversationListItem[]) {
     const socket = socketRef.current;
@@ -413,6 +429,8 @@ export default function MessagesPage() {
     if (!conversationId) {
       setSelectedConversation(null);
       setSelectedConversationId("");
+      setHasMoreMessagesBefore(false);
+      setOlderMessagesCursor(null);
       return;
     }
 
@@ -432,9 +450,13 @@ export default function MessagesPage() {
       const lastReadAtBeforeRead = participantBeforeRead?.lastReadAt ?? null;
       const hasUnreadBeforeRead = (conversationBeforeRead?.unreadCount ?? 0) > 0;
 
-      const detail = await getPrivateConversation(conversationId);
+      const detail = await getPrivateConversation(conversationId, {
+        limit: MESSAGES_PAGE_SIZE,
+      });
 
       setSelectedConversation(detail);
+      setHasMoreMessagesBefore(Boolean(detail.hasMoreBefore));
+      setOlderMessagesCursor(detail.nextBefore ?? null);
       setShouldShowUnreadMarker(hasUnreadBeforeRead);
       setUnreadMarkerLastReadAt(lastReadAtBeforeRead);
       setHasPendingNewMessages(false);
@@ -592,6 +614,65 @@ export default function MessagesPage() {
   const selectedConversationMeta = useMemo(() => {
     return conversations.find((c) => c.id === selectedConversationId) ?? null;
   }, [conversations, selectedConversationId]);
+
+  async function loadOlderMessages() {
+    if (
+      !selectedConversation ||
+      !selectedConversationId ||
+      !hasMoreMessagesBefore ||
+      !olderMessagesCursor ||
+      loadingOlderMessages
+    ) {
+      return;
+    }
+
+    const container = document.querySelector(
+      '[data-scroll-container="messages"]',
+    ) as HTMLElement | null;
+
+    const previousScrollHeight = container?.scrollHeight ?? 0;
+    const previousScrollTop = container?.scrollTop ?? 0;
+
+    setLoadingOlderMessages(true);
+
+    try {
+      const olderPage = await getPrivateConversation(selectedConversationId, {
+        limit: MESSAGES_PAGE_SIZE,
+        before: olderMessagesCursor,
+      });
+
+      setSelectedConversation((current) => {
+        if (!current || current.id !== selectedConversationId) {
+          return current;
+        }
+
+        const existingIds = new Set(current.messages.map((message) => message.id));
+        const olderMessages = olderPage.messages.filter(
+          (message) => !existingIds.has(message.id),
+        );
+
+        return {
+          ...current,
+          messages: [...olderMessages, ...current.messages],
+        };
+      });
+
+      setHasMoreMessagesBefore(Boolean(olderPage.hasMoreBefore));
+      setOlderMessagesCursor(olderPage.nextBefore ?? null);
+
+      window.requestAnimationFrame(() => {
+        const nextScrollHeight = container?.scrollHeight ?? 0;
+        if (container) {
+          container.scrollTop =
+            nextScrollHeight - previousScrollHeight + previousScrollTop;
+        }
+      });
+    } catch (e: any) {
+      setError(e?.message ?? "Erreur lors du chargement des anciens messages.");
+    } finally {
+      setLoadingOlderMessages(false);
+    }
+  }
 
   async function handleUserSearch(value: string) {
     setSearchTerm(value);
@@ -857,6 +938,18 @@ export default function MessagesPage() {
               </div>
 
               <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4" data-scroll-container="messages">
+                {hasMoreMessagesBefore && (
+                  <div className="flex justify-center pb-2">
+                    <button
+                      type="button"
+                      onClick={() => void loadOlderMessages()}
+                      disabled={loadingOlderMessages}
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50 disabled:opacity-60"
+                    >
+                      {loadingOlderMessages ? "Chargement..." : "Charger les anciens messages"}
+                    </button>
+                  </div>
+                )}
                 {selectedConversation.messages.length === 0 ? (
                   <div className="text-sm text-slate-500">Aucun message pour le moment.</div>
                 ) : (
