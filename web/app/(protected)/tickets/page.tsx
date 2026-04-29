@@ -103,6 +103,14 @@ export default function TicketsPage() {
     ).length;
   }, [tickets]);
 
+  const resolvedCount = useMemo(() => {
+    return tickets.filter((ticket) => ticket.status === "RESOLVED").length;
+  }, [tickets]);
+
+  const rejectedCount = useMemo(() => {
+    return tickets.filter((ticket) => ticket.status === "REJECTED").length;
+  }, [tickets]);
+
   return (
     <div className="space-y-6">
       <header className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -187,6 +195,29 @@ export default function TicketsPage() {
               {openCount} demande{openCount > 1 ? "s" : ""} ouverte
               {openCount > 1 ? "s" : ""} ou en cours.
             </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 border-b border-slate-200 p-5 sm:grid-cols-3">
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+              <p className="text-xs font-semibold uppercase text-blue-600">
+                Ouvertes / en cours
+              </p>
+              <p className="mt-1 text-2xl font-bold text-blue-700">{openCount}</p>
+            </div>
+
+            <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+              <p className="text-xs font-semibold uppercase text-green-600">
+                Résolues
+              </p>
+              <p className="mt-1 text-2xl font-bold text-green-700">{resolvedCount}</p>
+            </div>
+
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+              <p className="text-xs font-semibold uppercase text-red-600">
+                Rejetées
+              </p>
+              <p className="mt-1 text-2xl font-bold text-red-700">{rejectedCount}</p>
+            </div>
           </div>
 
           {loading ? (
