@@ -29,203 +29,218 @@ enum ResourceType {
   FILE
 }
 
+enum TicketType {
+  TECHNICAL_SUPPORT
+  COURSE_CREATION
+  RESOURCE_REQUEST
+  OTHER
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  REJECTED
+}
+
 model User {
-  id                String        @id @default(cuid())
-  email             String        @unique
+  id                String    @id @default(cuid())
+  email             String    @unique
   fullName          String
   passwordHash      String
-  role              Role          @default(STUDENT)
+  role              Role      @default(STUDENT)
   refreshTokenHash  String?
   resetTokenHash    String?
   resetTokenExpires DateTime?
 
   // Module affecté (pour les étudiants)
-  learningModule      LearningModule?  @relation("ModuleStudents", fields: [learningModuleId], references: [id])
-  learningModuleId    String?
+  learningModule   LearningModule? @relation("ModuleStudents", fields: [learningModuleId], references: [id])
+  learningModuleId String?
 
   // Relations
-  coursesEnrolled     Course[]      @relation("StudentCourses")
-  assignmentsCreated  Assignment[]  @relation("TeacherAssignments")
-  submissions         Submission[]
-  notifications       Notification[]
-  courseResources     CourseResource[]
+  coursesEnrolled        Course[]                @relation("StudentCourses")
+  assignmentsCreated     Assignment[]            @relation("TeacherAssignments")
+  submissions            Submission[]
+  notifications          Notification[]
+  ticketsRequested       Ticket[]                @relation("TicketRequester")
+  courseResources        CourseResource[]
   resourceDownloadEvents ResourceDownloadEvent[]
   resourceViewEvents     ResourceViewEvent[]
 
   // Annonces créées par l'utilisateur
-  announcements      Announcement[] @relation("AnnouncementAuthor")
-  
+  announcements Announcement[] @relation("AnnouncementAuthor")
+
   // Discussions créées par l'utilisateur
-  discussionThreads DiscussionThread[]
+  discussionThreads  DiscussionThread[]
   discussionMessages DiscussionMessage[]
 
   // ✅ Cours où l'user est prof (many-to-many)
-  teachingCourses     Course[]      @relation("CourseTeachers")
+  teachingCourses Course[] @relation("CourseTeachers")
 
   // Messagerie privée
   privateConversationParticipants PrivateConversationParticipant[]
-  privateMessagesSent            PrivateMessage[] @relation("PrivateMessageSender")
-  privateConversationsCreated    PrivateConversation[] @relation("PrivateConversationCreator")
+  privateMessagesSent             PrivateMessage[]                 @relation("PrivateMessageSender")
+  privateConversationsCreated     PrivateConversation[]            @relation("PrivateConversationCreator")
 
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // PostgreSQL gère nativement les enums avec l'enum Role ci-dessus
 
 model Semester {
-  id          String   @id @default(cuid())
-  name        String   // ex: "S1 2025-2026"
-  startDate   DateTime?
-  endDate     DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String    @id @default(cuid())
+  name      String // ex: "S1 2025-2026"
+  startDate DateTime?
+  endDate   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  learningModules     LearningModule[]
+  learningModules LearningModule[]
 }
 
 model LearningModule {
   id          String   @id @default(cuid())
-  name        String   // ex: "Data", "Informatique"
+  name        String // ex: "Data", "Informatique"
   description String?
   semester    Semester @relation(fields: [semesterId], references: [id], onDelete: Cascade)
   semesterId  String
 
-  subjects    Course[] // les "matières"
-  students    User[]   @relation("ModuleStudents") // ✅ étudiants affectés à ce module
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  subjects  Course[] // les "matières"
+  students  User[]   @relation("ModuleStudents") // ✅ étudiants affectés à ce module
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Course {
-  id                 String   @id @default(cuid())
-  title              String
-  description        String?
+  id          String  @id @default(cuid())
+  title       String
+  description String?
 
   // Rattacher la matière à un module
-  learningModule     LearningModule? @relation(fields: [learningModuleId], references: [id], onDelete: SetNull)
-  learningModuleId   String?
+  learningModule   LearningModule? @relation(fields: [learningModuleId], references: [id], onDelete: SetNull)
+  learningModuleId String?
 
   // ✅ Profs (many-to-many)
-  teachers           User[]   @relation("CourseTeachers")
+  teachers User[] @relation("CourseTeachers")
 
   // Étudiants inscrits (many-to-many)
-  students           User[]   @relation("StudentCourses")
+  students User[] @relation("StudentCourses")
 
   // Annonces du cours
-  announcements      Announcement[] @relation("CourseAnnouncements")
-  
+  announcements Announcement[] @relation("CourseAnnouncements")
+
   // Discussions du cours
   discussionThreads DiscussionThread[]
 
-  assignments        Assignment[]
-  courseResources    CourseResource[]
+  assignments            Assignment[]
+  courseResources        CourseResource[]
   resourceDownloadEvents ResourceDownloadEvent[]
   resourceViewEvents     ResourceViewEvent[]
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
 }
 
 model Assignment {
-  id          String   @id @default(cuid())
-  title       String
-  description String?
-  dueDate     DateTime
-  maxScore    Int      @default(20)
+  id                 String   @id @default(cuid())
+  title              String
+  description        String?
+  dueDate            DateTime
+  maxScore           Int      @default(20)
   attachmentUrl      String?
   attachmentName     String?
   attachmentSize     Int?
   attachmentMimeType String?
-  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  courseId    String
-  teacher     User     @relation("TeacherAssignments", fields: [teacherId], references: [id], onDelete: Cascade)
-  teacherId   String
-  
-  submissions Submission[]
+  course             Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId           String
+  teacher            User     @relation("TeacherAssignments", fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId          String
+
+  submissions   Submission[]
   notifications Notification[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 }
 
 model Submission {
-  id            String   @id @default(cuid())
-  student       User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  studentId     String
-  assignment    Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  assignmentId  String
-  
-  fileUrls      String?  // JSON array of file objects
-  score         Float?   // 0-20
-  feedback      String?
-  submittedAt   DateTime @default(now())
-  correctedAt   DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
-  files         SubmissionFile[]
-  
+  id           String     @id @default(cuid())
+  student      User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId    String
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  assignmentId String
+
+  fileUrls    String? // JSON array of file objects
+  score       Float? // 0-20
+  feedback    String?
+  submittedAt DateTime  @default(now())
+  correctedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  files SubmissionFile[]
+
   @@unique([studentId, assignmentId])
 }
 
 model SubmissionFile {
-  submission    Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  submissionId  String
-  
-  filename      String   // Original filename
-  fileUrl       String   // Path to uploaded file
-  fileSize      Int      // File size in bytes
-  mimeType      String   // File MIME type
-  
-  createdAt     DateTime @default(now())
-  
+  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  submissionId String
+
+  filename String // Original filename
+  fileUrl  String // Path to uploaded file
+  fileSize Int // File size in bytes
+  mimeType String // File MIME type
+
+  createdAt DateTime @default(now())
+
   @@id([submissionId, filename])
 }
 
 model Notification {
-  id          String           @id @default(cuid())
-  title       String
-  message     String
-  type        NotificationType
-  isRead      Boolean          @default(false)
-  readAt      DateTime?        // ✅ AJOUT
-  metadata    Json?            // ✅ AJOUT
-  
+  id       String           @id @default(cuid())
+  title    String
+  message  String
+  type     NotificationType
+  isRead   Boolean          @default(false)
+  readAt   DateTime? // ✅ AJOUT
+  metadata Json? // ✅ AJOUT
+
   // Relations
-  userId      String
-  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   // Optional: link to related entity
   assignmentId String?
-  assignment   Assignment?      @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
-  
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  
+  assignment   Assignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([userId, isRead])
   @@index([createdAt])
 }
 
 model CourseResource {
-  id          String   @id @default(cuid())
+  id          String       @id @default(cuid())
   title       String
   description String?
   type        ResourceType @default(FILE)
 
   // stockage local
-  filename    String   // nom affiché ou original
-  storedName  String   // nom unique généré (safe)
-  mimeType    String
-  size        Int
-  path        String   // chemin relatif (ex: "courses/<courseId>/<storedName>")
+  filename   String // nom affiché ou original
+  storedName String // nom unique généré (safe)
+  mimeType   String
+  size       Int
+  path       String // chemin relatif (ex: "courses/<courseId>/<storedName>")
 
-  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  courseId    String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId String
 
-  teacher     User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  teacherId   String
+  teacher   User   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId String
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   downloadEvents ResourceDownloadEvent[]
   viewEvents     ResourceViewEvent[]
@@ -235,15 +250,15 @@ model CourseResource {
 }
 
 model Announcement {
-  id        String   @id @default(cuid())
-  title     String
-  content   String
+  id      String @id @default(cuid())
+  title   String
+  content String
 
-  courseId  String
-  course    Course   @relation("CourseAnnouncements", fields: [courseId], references: [id], onDelete: Cascade)
+  courseId String
+  course   Course @relation("CourseAnnouncements", fields: [courseId], references: [id], onDelete: Cascade)
 
-  authorId  String
-  author    User     @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  authorId String
+  author   User   @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -253,16 +268,16 @@ model Announcement {
 }
 
 model DiscussionThread {
-  id        String   @id @default(cuid())
-  title     String
-  
-  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  courseId  String
+  id    String @id @default(cuid())
+  title String
 
-  createdBy User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId String
+
+  createdBy   User   @relation(fields: [createdById], references: [id], onDelete: Cascade)
   createdById String
 
-  messages  DiscussionMessage[]
+  messages DiscussionMessage[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -272,14 +287,14 @@ model DiscussionThread {
 }
 
 model DiscussionMessage {
-  id        String   @id @default(cuid())
-  content   String
+  id      String @id @default(cuid())
+  content String
 
-  thread    DiscussionThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  threadId  String
+  thread   DiscussionThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  threadId String
 
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  authorId  String
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -306,7 +321,7 @@ model ResourceDownloadEvent {
 }
 
 model ResourceViewEvent {
-  id        String   @id @default(cuid())
+  id         String   @id @default(cuid())
   resourceId String
   courseId   String
   userId     String
@@ -323,15 +338,15 @@ model ResourceViewEvent {
 }
 
 model PrivateConversation {
-  id          String   @id @default(cuid())
+  id          String @id @default(cuid())
   createdById String
-  createdBy   User     @relation("PrivateConversationCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  createdBy   User   @relation("PrivateConversationCreator", fields: [createdById], references: [id], onDelete: Cascade)
 
   participants PrivateConversationParticipant[]
   messages     PrivateMessage[]
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([createdById])
 }
@@ -339,7 +354,7 @@ model PrivateConversation {
 model PrivateConversationParticipant {
   conversationId String
   userId         String
-  joinedAt       DateTime @default(now())
+  joinedAt       DateTime  @default(now())
   lastReadAt     DateTime?
 
   conversation PrivateConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
@@ -351,7 +366,7 @@ model PrivateConversationParticipant {
 }
 
 model PrivateMessage {
-  id             String   @id @default(cuid())
+  id             String @id @default(cuid())
   conversationId String
   senderId       String
   content        String
@@ -359,9 +374,28 @@ model PrivateMessage {
   conversation PrivateConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User                @relation("PrivateMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([conversationId, createdAt])
   @@index([senderId])
+}
+
+model Ticket {
+  id          String       @id @default(cuid())
+  title       String
+  description String
+  type        TicketType
+  status      TicketStatus @default(OPEN)
+
+  requesterId String
+  requester   User   @relation("TicketRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([requesterId])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
 }

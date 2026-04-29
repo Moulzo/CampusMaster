@@ -22,6 +22,7 @@ import { TeacherModule } from './teacher/teacher.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
 import { DiscussionsModule } from './discussions/discussions.module';
 import { PrivateMessagesModule } from './private-messages/private-messages.module';
+import { TicketsModule } from './tickets/tickets.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { PrivateMessagesModule } from './private-messages/private-messages.modul
     AnnouncementsModule,
     DiscussionsModule,
     PrivateMessagesModule,
+    TicketsModule,
   ],
   controllers: [AppController],
   providers: [
