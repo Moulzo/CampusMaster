@@ -1,36 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { RequireRole } from "@/lib/require-role";
 import {
-  getAdminAnalyticsCourses,
   getAdminAnalyticsOverview,
   type AdminAnalyticsOverview,
-  type AdminCourseAnalytics,
 } from "@/lib/admin-analytics";
-
-function formatPercent(value: number | null) {
-  return value === null ? "—" : `${value.toFixed(2)}%`;
-}
-
-function formatAverage(value: number | null) {
-  return value === null ? "—" : value.toFixed(2);
-}
-
-function getRateBadgeClass(value: number | null) {
-  if (value === null) return "bg-slate-100 text-slate-500";
-  if (value >= 80) return "bg-green-100 text-green-700";
-  if (value >= 50) return "bg-amber-100 text-amber-700";
-  return "bg-red-100 text-red-700";
-}
-
-function getAverageBadgeClass(value: number | null) {
-  if (value === null) return "bg-slate-100 text-slate-500";
-  if (value >= 14) return "bg-green-100 text-green-700";
-  if (value >= 10) return "bg-amber-100 text-amber-700";
-  return "bg-red-100 text-red-700";
-}
 
 function StatCard({
   title,
@@ -69,7 +45,6 @@ function StatCard({
 
 export default function AdminPage() {
   const [overview, setOverview] = useState<AdminAnalyticsOverview | null>(null);
-  const [courses, setCourses] = useState<AdminCourseAnalytics[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -81,15 +56,11 @@ export default function AdminPage() {
         setLoading(true);
         setError("");
 
-        const [overviewData, coursesData] = await Promise.all([
-          getAdminAnalyticsOverview(),
-          getAdminAnalyticsCourses(),
-        ]);
+        const overviewData = await getAdminAnalyticsOverview();
 
         if (cancelled) return;
 
         setOverview(overviewData);
-        setCourses(coursesData);
       } catch (e: any) {
         if (cancelled) return;
         setError(e?.message ?? "Erreur lors du chargement des analytics.");
@@ -102,34 +73,6 @@ export default function AdminPage() {
       cancelled = true;
     };
   }, []);
-
-
-  const sortedCourses = useMemo(() => {
-    return [...courses].sort((a, b) => {
-      const aRate = a.submissionRate ?? -1;
-      const bRate = b.submissionRate ?? -1;
-      if (bRate !== aRate) return bRate - aRate;
-      return a.courseTitle.localeCompare(b.courseTitle, "fr");
-    });
-  }, [courses]);
-
-  const bestSubmissionCourse = useMemo(() => {
-    const valid = courses.filter((c) => c.submissionRate !== null);
-    if (!valid.length) return null;
-    return [...valid].sort((a, b) => (b.submissionRate ?? 0) - (a.submissionRate ?? 0))[0];
-  }, [courses]);
-
-  const lowestSubmissionCourse = useMemo(() => {
-    const valid = courses.filter((c) => c.submissionRate !== null);
-    if (!valid.length) return null;
-    return [...valid].sort((a, b) => (a.submissionRate ?? 0) - (b.submissionRate ?? 0))[0];
-  }, [courses]);
-
-  const bestAverageCourse = useMemo(() => {
-    const valid = courses.filter((c) => c.averageGrade !== null);
-    if (!valid.length) return null;
-    return [...valid].sort((a, b) => (b.averageGrade ?? 0) - (a.averageGrade ?? 0))[0];
-  }, [courses]);
 
   return (
     <RequireRole role="ADMIN">
@@ -203,44 +146,6 @@ export default function AdminPage() {
                   </Link>
                 </div>
               </div>
-
-              {!loading && !error && (
-                <div className="bg-white rounded-lg shadow-md p-6 border border-slate-200">
-                  <h3 className="text-lg font-bold text-slate-900 mb-4">Points clés</h3>
-                  <div className="space-y-3 text-sm">
-                    <div className="rounded-lg bg-green-50 border border-green-200 p-3">
-                      <p className="font-semibold text-green-800">Meilleur taux de remise</p>
-                      <p className="text-green-700">
-                        {bestSubmissionCourse
-                          ? `${bestSubmissionCourse.courseTitle} — ${formatPercent(
-                              bestSubmissionCourse.submissionRate,
-                            )}`
-                          : "—"}
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
-                      <p className="font-semibold text-amber-800">Taux le plus faible</p>
-                      <p className="text-amber-700">
-                        {lowestSubmissionCourse
-                          ? `${lowestSubmissionCourse.courseTitle} — ${formatPercent(
-                              lowestSubmissionCourse.submissionRate,
-                            )}`
-                          : "—"}
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
-                      <p className="font-semibold text-blue-800">Meilleure moyenne</p>
-                      <p className="text-blue-700">
-                        {bestAverageCourse
-                          ? `${bestAverageCourse.courseTitle} — ${formatAverage(
-                              bestAverageCourse.averageGrade,
-                            )}`
-                          : "—"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
 
             <div className="lg:col-span-2 space-y-6">
@@ -322,122 +227,6 @@ export default function AdminPage() {
                         />
                       </div>
                     </section>
-
-                    <section className="space-y-3">
-                      <div>
-                        <h2 className="text-lg font-bold text-slate-900">
-                          Indicateurs pédagogiques
-                        </h2>
-                        <p className="text-sm text-slate-500">
-                          Ces indicateurs seront progressivement déplacés vers les espaces professeurs
-                          et direction pédagogique.
-                        </p>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                        <StatCard
-                          title="Taux de remise"
-                          value={formatPercent(overview?.kpis.submissionRate ?? null)}
-                          icon="📈"
-                          tone="slate"
-                        />
-
-                        <div className="bg-white rounded-lg shadow-md p-6 border border-slate-200">
-                          <p className="text-sm text-slate-500">Moyenne globale</p>
-                          <p className="text-3xl font-bold text-slate-900 mt-1">
-                            {formatAverage(overview?.kpis.globalAverage ?? null)}
-                          </p>
-                        </div>
-
-                        <div className="bg-white rounded-lg shadow-md p-6 border border-slate-200">
-                          <p className="text-sm text-slate-500">Rendus uniques</p>
-                          <p className="text-3xl font-bold text-slate-900 mt-1">
-                            {overview?.kpis.deliveredAssignments ?? 0}
-                          </p>
-                        </div>
-
-                        <div className="bg-white rounded-lg shadow-md p-6 border border-slate-200">
-                          <p className="text-sm text-slate-500">Rendus attendus</p>
-                          <p className="text-3xl font-bold text-slate-900 mt-1">
-                            {overview?.kpis.expectedSubmissions ?? 0}
-                          </p>
-                        </div>
-                      </div>
-                    </section>
-                  </div>
-
-                  <div className="bg-white rounded-lg shadow-md border border-slate-200 overflow-hidden">
-                    <div className="p-6 border-b border-slate-200">
-                      <h3 className="text-lg font-bold text-slate-900">Performance par matière</h3>
-                      <p className="text-sm text-slate-500 mt-1">
-                        Vue pédagogique temporaire, à déplacer ensuite vers les espaces professeurs
-                        et direction.
-                      </p>
-                    </div>
-
-                    {sortedCourses.length === 0 ? (
-                      <div className="p-6 text-slate-500">Aucune donnée analytics disponible.</div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full text-sm">
-                          <thead className="bg-slate-50">
-                            <tr className="text-left text-slate-600">
-                              <th className="px-4 py-3 font-semibold">Matière</th>
-                              <th className="px-4 py-3 font-semibold">Module</th>
-                              <th className="px-4 py-3 font-semibold">Semestre</th>
-                              <th className="px-4 py-3 font-semibold">Étudiants</th>
-                              <th className="px-4 py-3 font-semibold">Devoirs</th>
-                              <th className="px-4 py-3 font-semibold">Rendus</th>
-                              <th className="px-4 py-3 font-semibold">Attendus</th>
-                              <th className="px-4 py-3 font-semibold">Taux</th>
-                              <th className="px-4 py-3 font-semibold">Moyenne</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {sortedCourses.map((course) => (
-                              <tr key={course.courseId} className="border-t border-slate-100">
-                                <td className="px-4 py-3 font-medium text-slate-900">
-                                  {course.courseTitle}
-                                </td>
-                                <td className="px-4 py-3 text-slate-600">
-                                  {course.learningModuleName ?? "—"}
-                                </td>
-                                <td className="px-4 py-3 text-slate-600">
-                                  {course.semesterName ?? "—"}
-                                </td>
-                                <td className="px-4 py-3 text-slate-600">{course.studentCount}</td>
-                                <td className="px-4 py-3 text-slate-600">{course.assignmentCount}</td>
-                                <td className="px-4 py-3 text-slate-600">
-                                  {course.deliveredAssignmentCount}
-                                  <span className="text-xs text-slate-400 ml-1">
-                                    ({course.submissionCount} dépôts)
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3 text-slate-600">{course.expectedSubmissions}</td>
-                                <td className="px-4 py-3">
-                                  <span
-                                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getRateBadgeClass(
-                                      course.submissionRate,
-                                    )}`}
-                                  >
-                                    {formatPercent(course.submissionRate)}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <span
-                                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getAverageBadgeClass(
-                                      course.averageGrade,
-                                    )}`}
-                                  >
-                                    {formatAverage(course.averageGrade)}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
                   </div>
                 </>
               )}
