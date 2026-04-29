@@ -13,6 +13,16 @@ import {
 export default function AdminUsersPage() {
   type UserTab = "ALL" | AdminUser["role"];
 
+  type ActivityFilter = "ALL" | "ACTIVE_7_DAYS" | "ACTIVE_30_DAYS" | "INACTIVE" | "NEVER_CONNECTED";
+
+  const activityOptions: Array<{ value: ActivityFilter; label: string }> = [
+    { value: "ALL", label: "Toutes les activités" },
+    { value: "ACTIVE_7_DAYS", label: "Actifs 7 jours" },
+    { value: "ACTIVE_30_DAYS", label: "Actifs 30 jours" },
+    { value: "INACTIVE", label: "Inactifs +30 jours" },
+    { value: "NEVER_CONNECTED", label: "Jamais connectés" },
+  ];
+
   const userTabs: Array<{ value: UserTab; label: string }> = [
     { value: "ALL", label: "Tous" },
     ...roleOptions.map((option) => ({
@@ -31,10 +41,47 @@ export default function AdminUsersPage() {
   const [moduleFilter, setModuleFilter] = useState<"ALL" | "UNASSIGNED" | string>(
     "ALL",
   );
+  const [activityFilter, setActivityFilter] = useState<ActivityFilter>("ALL");
 
   const users = usersByTab[activeTab] ?? [];
   const loading = loadingByTab[activeTab] ?? false;
   const error = errorByTab[activeTab] ?? null;
+
+  function matchesActivityFilter(
+    lastLoginAt: string | null | undefined,
+    filter: ActivityFilter,
+  ) {
+    if (filter === "ALL") {
+      return true;
+    }
+
+    if (!lastLoginAt) {
+      return filter === "NEVER_CONNECTED";
+    }
+
+    const lastLoginTime = new Date(lastLoginAt).getTime();
+
+    if (Number.isNaN(lastLoginTime)) {
+      return filter === "NEVER_CONNECTED";
+    }
+
+    const daysSinceLogin =
+      (Date.now() - lastLoginTime) / (1000 * 60 * 60 * 24);
+
+    if (filter === "ACTIVE_7_DAYS") {
+      return daysSinceLogin <= 7;
+    }
+
+    if (filter === "ACTIVE_30_DAYS") {
+      return daysSinceLogin <= 30;
+    }
+
+    if (filter === "INACTIVE") {
+      return daysSinceLogin > 30;
+    }
+
+    return true;
+  }
 
   const filteredUsers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -51,9 +98,14 @@ export default function AdminUsersPage() {
         (moduleFilter === "UNASSIGNED" && !user.learningModuleId) ||
         user.learningModuleId === moduleFilter;
 
-      return matchesSearch && matchesModule;
+      const matchesActivity = matchesActivityFilter(
+        user.lastLoginAt,
+        activityFilter,
+      );
+
+      return matchesSearch && matchesModule && matchesActivity;
     });
-  }, [users, searchQuery, activeTab, moduleFilter]);
+  }, [users, searchQuery, activeTab, moduleFilter, activityFilter]);
 
   async function loadTab(tab: UserTab, options?: { force?: boolean }) {
     if (!options?.force && usersByTab[tab]) {
@@ -156,7 +208,7 @@ export default function AdminUsersPage() {
       <div className="text-sm text-zinc-600">
         {loading
           ? "Chargement des utilisateurs..."
-          : searchQuery.trim() || moduleFilter !== "ALL"
+          : searchQuery.trim() || moduleFilter !== "ALL" || activityFilter !== "ALL"
             ? `${filteredUsers.length} résultat${
                 filteredUsers.length > 1 ? "s" : ""
               } sur ${users.length} utilisateur${users.length > 1 ? "s" : ""}`
@@ -195,6 +247,33 @@ export default function AdminUsersPage() {
             </button>
           )}
         </div>
+      </div>
+
+      <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <label
+            htmlFor="admin-users-activity-filter"
+            className="text-sm font-medium text-zinc-700"
+          >
+            Filtrer par activité
+          </label>
+          <p className="text-xs text-zinc-500">
+            Utilise la dernière connexion enregistrée pour repérer les comptes actifs ou inactifs.
+          </p>
+        </div>
+
+        <select
+          id="admin-users-activity-filter"
+          value={activityFilter}
+          onChange={(e) => setActivityFilter(e.target.value as ActivityFilter)}
+          className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:max-w-md"
+        >
+          {activityOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {activeTab === "STUDENT" && (
@@ -246,6 +325,7 @@ export default function AdminUsersPage() {
               onClick={() => {
                 setActiveTab(tab.value);
                 setSearchQuery("");
+                setActivityFilter("ALL");
               }}
               className={[
                 "rounded-t-lg px-4 py-2 text-sm font-medium transition",
