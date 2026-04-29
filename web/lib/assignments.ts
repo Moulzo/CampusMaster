@@ -27,8 +27,11 @@ export interface Assignment {
   course: {
     id: string;
     title: string;
-    // ✅ multi-teacher (si l'API l'inclut)
     teachers?: UserLite[];
+    students?: Array<{ id: string }>;
+    learningModule?: {
+      students?: Array<{ id: string }>;
+    } | null;
   };
 
   submissions: Submission[];
@@ -81,6 +84,14 @@ function normalizeAssignment(a: any): Assignment {
     course: {
       ...(a.course ?? {}),
       teachers: a.course?.teachers ?? [],
+      students:
+        a.course?.students ??
+        a.course?.learningModule?.students ??
+        [],
+      learningModule: {
+        ...(a.course?.learningModule ?? {}),
+        students: a.course?.learningModule?.students ?? [],
+      },
     },
     submissions: a.submissions ?? [],
   };

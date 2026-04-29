@@ -219,12 +219,27 @@ export class AssignmentsService {
     return this.prisma.assignment.findMany({
       where,
       include: {
-        course: { 
-          select: { 
-            id: true, 
+        course: {
+          select: {
+            id: true,
             title: true,
-            teachers: { select: { id: true, fullName: true, email: true } },
-          } 
+            learningModule: {
+              select: {
+                students: {
+                  select: {
+                    id: true,
+                  },
+                },
+              },
+            },
+            teachers: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+              },
+            },
+          },
         },
         submissions: {
           where: filter.studentIdForSubmissions ? { studentId: filter.studentIdForSubmissions } : undefined,

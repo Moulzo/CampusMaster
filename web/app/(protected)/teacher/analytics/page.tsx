@@ -12,6 +12,27 @@ function formatAverage(value: number | null) {
   return value === null ? "—" : value.toFixed(2);
 }
 
+function getSubmittedStudentIds(assignment: Assignment) {
+  return new Set(
+    (assignment.submissions ?? [])
+      .map((submission) => submission.studentId)
+      .filter(Boolean),
+  );
+}
+
+function getEligibleStudentCount(assignment: Assignment) {
+  const moduleStudents =
+    assignment.course?.students ??
+    assignment.course?.learningModule?.students ??
+    [];
+
+  if (moduleStudents.length > 0) {
+    return moduleStudents.length;
+  }
+
+  return getSubmittedStudentIds(assignment).size;
+}
+
 function StatCard({
   title,
   value,
@@ -40,8 +61,12 @@ function StatCard({
 type CourseStats = {
   courseId: string;
   courseTitle: string;
+  studentCount: number;
   assignmentCount: number;
+  expectedSubmissions: number;
   submissionCount: number;
+  deliveredUniqueCount: number;
+  submissionRate: number | null;
   gradedCount: number;
   pendingCorrectionCount: number;
   averageGrade: number | null;
@@ -111,24 +136,27 @@ export default function TeacherAnalyticsPage() {
         ? Number((totalScore / gradedSubmissions.length).toFixed(2))
         : null;
 
+    const uniqueDeliveredKeys = new Set(
+      allSubmissions.map((submission) => {
+        return `${submission.assignmentId}:${submission.studentId}`;
+      }),
+    );
+
+    const deliveredUniqueCount = uniqueDeliveredKeys.size;
+
     const expectedSubmissions = assignments.reduce((sum, assignment) => {
-      const students = assignment.course?.students?.length;
-
-      if (typeof students === "number") {
-        return sum + students;
-      }
-
-      return sum;
+      return sum + getEligibleStudentCount(assignment);
     }, 0);
 
     const submissionRate =
       expectedSubmissions > 0
-        ? Number(((submissionCount / expectedSubmissions) * 100).toFixed(2))
+        ? Number(((deliveredUniqueCount / expectedSubmissions) * 100).toFixed(2))
         : null;
 
     return {
       assignmentCount,
       submissionCount,
+      deliveredUniqueCount,
       gradedCount: gradedSubmissions.length,
       pendingCorrectionCount,
       averageGrade,
@@ -148,8 +176,12 @@ export default function TeacherAnalyticsPage() {
         map.set(courseId, {
           courseId,
           courseTitle,
+          studentCount: 0,
           assignmentCount: 0,
+          expectedSubmissions: 0,
           submissionCount: 0,
+          deliveredUniqueCount: 0,
+          submissionRate: null,
           gradedCount: 0,
           pendingCorrectionCount: 0,
           totalGrade: 0,
@@ -160,7 +192,14 @@ export default function TeacherAnalyticsPage() {
       const current = map.get(courseId)!;
       current.assignmentCount += 1;
 
+      const studentCount = getEligibleStudentCount(assignment);
+      current.studentCount = Math.max(current.studentCount, studentCount);
+      current.expectedSubmissions += studentCount;
+
+      const deliveredStudentsForAssignment = new Set<string>();
+
       for (const submission of assignment.submissions ?? []) {
+        deliveredStudentsForAssignment.add(submission.studentId);
         current.submissionCount += 1;
 
         if (submission.score === null || submission.score === undefined) {
@@ -172,11 +211,22 @@ export default function TeacherAnalyticsPage() {
         current.gradedCount += 1;
         current.totalGrade += (submission.score / maxScore) * 20;
       }
+
+      current.deliveredUniqueCount += deliveredStudentsForAssignment.size;
     }
 
     return Array.from(map.values())
       .map(({ totalGrade, ...stats }) => ({
         ...stats,
+        submissionRate:
+          stats.expectedSubmissions > 0
+            ? Number(
+                (
+                  (stats.deliveredUniqueCount / stats.expectedSubmissions) *
+                  100
+                ).toFixed(2),
+              )
+            : null,
         averageGrade:
           stats.gradedCount > 0
             ? Number((totalGrade / stats.gradedCount).toFixed(2))
@@ -214,9 +264,14 @@ export default function TeacherAnalyticsPage() {
                 icon="📝"
               />
               <StatCard
-                title="Soumissions"
+                title="Dépôts"
                 value={analytics.submissionCount}
                 icon="📥"
+              />
+              <StatCard
+                title="Rendus uniques"
+                value={analytics.deliveredUniqueCount}
+                icon="✅"
               />
               <StatCard
                 title="À corriger"
@@ -266,6 +321,10 @@ export default function TeacherAnalyticsPage() {
                       <tr>
                         <th className="px-4 py-3 font-semibold">Matière</th>
                         <th className="px-4 py-3 font-semibold">Devoirs</th>
+                        <th className="px-4 py-3 font-semibold">Étudiants</th>
+                        <th className="px-4 py-3 font-semibold">Attendus</th>
+                        <th className="px-4 py-3 font-semibold">Rendus uniques</th>
+                        <th className="px-4 py-3 font-semibold">Taux</th>
                         <th className="px-4 py-3 font-semibold">Soumissions</th>
                         <th className="px-4 py-3 font-semibold">Corrigés</th>
                         <th className="px-4 py-3 font-semibold">À corriger</th>
@@ -280,6 +339,18 @@ export default function TeacherAnalyticsPage() {
                           </td>
                           <td className="px-4 py-3 text-slate-600">
                             {course.assignmentCount}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">
+                            {course.studentCount}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">
+                            {course.expectedSubmissions}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">
+                            {course.deliveredUniqueCount}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">
+                            {formatPercent(course.submissionRate)}
                           </td>
                           <td className="px-4 py-3 text-slate-600">
                             {course.submissionCount}
