@@ -306,7 +306,7 @@ export default function TeacherAnalyticsPage() {
                   Détail par matière
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Vue synthétique des devoirs et corrections par cours.
+                  Vue synthétique des devoirs, remises et corrections par cours.
                 </p>
               </div>
 
@@ -315,13 +315,14 @@ export default function TeacherAnalyticsPage() {
                   Aucune donnée disponible pour le moment.
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-sm">
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm">
                     <thead className="bg-slate-50 text-left text-slate-600">
                       <tr>
                         <th className="px-4 py-3 font-semibold">Matière</th>
                         <th className="px-4 py-3 font-semibold">Devoirs</th>
-                        <th className="px-4 py-3 font-semibold">Étudiants</th>
+                        <th className="px-4 py-3 font-semibold">Étudiants retenus</th>
                         <th className="px-4 py-3 font-semibold">Attendus</th>
                         <th className="px-4 py-3 font-semibold">Rendus uniques</th>
                         <th className="px-4 py-3 font-semibold">Taux</th>
@@ -369,6 +370,12 @@ export default function TeacherAnalyticsPage() {
                     </tbody>
                   </table>
                 </div>
+                <div className="border-t border-slate-100 bg-slate-50 px-5 py-3 text-xs text-slate-500">
+                  Les étudiants retenus correspondent aux étudiants du module pour les matières
+                  actuelles. Pour les anciennes matières sans affectation actuelle, ils sont
+                  déduits des soumissions historiques.
+                </div>
+                </>
               )}
             </section>
           </>
