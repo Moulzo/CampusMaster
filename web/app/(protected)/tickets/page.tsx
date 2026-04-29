@@ -23,6 +23,14 @@ function formatDate(date: string) {
   });
 }
 
+const statusOptions: Array<{ value: "" | Ticket["status"]; label: string }> = [
+  { value: "", label: "Tous les statuts" },
+  { value: "OPEN", label: "Ouvertes" },
+  { value: "IN_PROGRESS", label: "En cours" },
+  { value: "RESOLVED", label: "Résolues" },
+  { value: "REJECTED", label: "Rejetées" },
+];
+
 export default function TicketsPage() {
   const { user } = useAuth();
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -33,6 +41,7 @@ export default function TicketsPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState<TicketType>("TECHNICAL_SUPPORT");
+  const [statusFilter, setStatusFilter] = useState<"" | Ticket["status"]>("");
 
   const availableTicketTypes = useMemo(() => {
     const entries = Object.entries(ticketTypeLabels) as Array<
@@ -110,6 +119,14 @@ export default function TicketsPage() {
   const rejectedCount = useMemo(() => {
     return tickets.filter((ticket) => ticket.status === "REJECTED").length;
   }, [tickets]);
+
+  const filteredTickets = useMemo(() => {
+    if (!statusFilter) {
+      return tickets;
+    }
+
+    return tickets.filter((ticket) => ticket.status === statusFilter);
+  }, [tickets, statusFilter]);
 
   return (
     <div className="space-y-6">
@@ -190,11 +207,32 @@ export default function TicketsPage() {
 
         <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 p-5">
-            <h2 className="text-lg font-bold text-slate-900">Historique</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {openCount} demande{openCount > 1 ? "s" : ""} ouverte
-              {openCount > 1 ? "s" : ""} ou en cours.
-            </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Historique</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {statusFilter
+                    ? `${filteredTickets.length} demande${
+                        filteredTickets.length > 1 ? "s" : ""
+                      } affichée${filteredTickets.length > 1 ? "s" : ""}`
+                    : `${openCount} demande${openCount > 1 ? "s" : ""} ouverte${
+                        openCount > 1 ? "s" : ""
+                      } ou en cours.`}
+                </p>
+              </div>
+
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as "" | Ticket["status"])}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              >
+                {statusOptions.map((status) => (
+                  <option key={status.value || "ALL"} value={status.value}>
+                    {status.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-3 border-b border-slate-200 p-5 sm:grid-cols-3">
@@ -222,13 +260,15 @@ export default function TicketsPage() {
 
           {loading ? (
             <div className="p-6 text-sm text-slate-500">Chargement...</div>
-          ) : tickets.length === 0 ? (
+          ) : filteredTickets.length === 0 ? (
             <div className="p-6 text-sm text-slate-500">
-              Aucune demande pour le moment.
+              {statusFilter
+                ? "Aucune demande ne correspond à ce statut."
+                : "Aucune demande pour le moment."}
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {tickets.map((ticket) => (
+              {filteredTickets.map((ticket) => (
                 <article key={ticket.id} className="p-5">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
