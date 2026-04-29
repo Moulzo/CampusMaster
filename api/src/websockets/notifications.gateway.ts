@@ -45,7 +45,8 @@ export class NotificationsGateway implements OnGatewayInit, OnGatewayConnection,
     private prisma: PrismaService,
   ) {}
 
-  afterInit() {
+  afterInit(server: Server) {
+    this.webSocketService.setServer(server);
     this.logger.log("✅ WebSocket Gateway initialized on /socket.io");
   }
 

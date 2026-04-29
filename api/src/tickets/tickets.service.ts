@@ -2,10 +2,14 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { TicketStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class TicketsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   create(requesterId: string, requesterRole: string, dto: CreateTicketDto) {
     if (requesterRole === 'STUDENT' && dto.type === 'COURSE_CREATION') {
@@ -93,9 +97,22 @@ export class TicketsService {
     });
   }
 
+  private getTicketStatusLabel(status: TicketStatus) {
+    switch (status) {
+      case 'OPEN':
+        return 'ouverte';
+      case 'IN_PROGRESS':
+        return 'en cours de traitement';
+      case 'RESOLVED':
+        return 'résolue';
+      case 'REJECTED':
+        return 'rejetée';
+    }
+  }
+
   async updateStatus(id: string, status: TicketStatus) {
     try {
-      return await this.prisma.ticket.update({
+      const ticket = await this.prisma.ticket.update({
         where: { id },
         data: { status },
         include: {
@@ -109,6 +126,15 @@ export class TicketsService {
           },
         },
       });
+
+      await this.notificationsService.notifyTicketStatusUpdated(
+        ticket.requesterId,
+        ticket.id,
+        ticket.title,
+        this.getTicketStatusLabel(ticket.status),
+      );
+
+      return ticket;
     } catch (error: any) {
       if (error?.code === 'P2025') {
         throw new NotFoundException('Ticket not found');

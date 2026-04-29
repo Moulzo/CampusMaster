@@ -1,9 +1,11 @@
 import { Injectable, Logger, Inject } from '@nestjs/common';
+import { Server } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class WebSocketService {
   private connectedClients: Map<string, any> = new Map();
+  private server?: Server;
   private logger: Logger = new Logger('WebSocketService');
 
   constructor(private prisma: PrismaService) {}
@@ -34,11 +36,28 @@ export class WebSocketService {
     };
   }
 
+  setServer(server: Server) {
+    this.server = server;
+    this.logger.log('Socket.IO server registered in WebSocketService');
+  }
+
+  private userRoom(userId: string) {
+    return `user:${userId}`;
+  }
+
   sendNotificationToUser(userId: string, notification: any) {
     this.sendToUser(userId, 'notification:new', notification);
   }
 
   sendToUser(userId: string, event: string, data: any) {
+    const room = this.userRoom(userId);
+
+    if (this.server) {
+      this.server.to(room).emit(event, data);
+      this.logger.log(`📤 Message envoyé à ${room}: ${event}`);
+      return;
+    }
+
     const client = this.connectedClients.get(userId);
     if (client) {
       client.emit(event, data);

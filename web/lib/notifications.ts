@@ -33,6 +33,19 @@ function getMetaIds(metadata: unknown): { courseId?: string; assignmentId?: stri
 }
 
 export function getNotificationHref(n: AppNotification): string | null {
+  const metadata = n.metadata as
+    | { href?: string; ticketId?: string }
+    | null
+    | undefined;
+
+  if (metadata?.href) {
+    return metadata.href;
+  }
+
+  if (metadata?.ticketId) {
+    return `/tickets/${metadata.ticketId}`;
+  }
+
   const { courseId, assignmentId } = getMetaIds(n.metadata);
 
   console.log("[notifications.ts] getNotificationHref:", {

@@ -314,4 +314,24 @@ export class NotificationsService {
       'NEW_MESSAGE'
     );
   }
+
+  async notifyTicketStatusUpdated(
+    userId: string,
+    ticketId: string,
+    ticketTitle: string,
+    statusLabel: string,
+  ) {
+    return this.createNotification(
+      userId,
+      'Demande mise à jour',
+      `Votre demande "${ticketTitle}" est maintenant ${statusLabel}.`,
+      'SYSTEM',
+      {
+        metadata: {
+          ticketId,
+          href: `/tickets/${ticketId}`,
+        },
+      },
+    );
+  }
 }
