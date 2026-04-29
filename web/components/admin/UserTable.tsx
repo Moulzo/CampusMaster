@@ -1,6 +1,60 @@
 import type { AdminUser } from "@/lib/admin-users";
 import { getRoleLabel } from "@/lib/role-labels";
 
+function formatLastLogin(lastLoginAt?: string | null) {
+  if (!lastLoginAt) {
+    return "Jamais connecté";
+  }
+
+  return new Date(lastLoginAt).toLocaleString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getActivityStatus(lastLoginAt?: string | null) {
+  if (!lastLoginAt) {
+    return {
+      label: "Jamais connecté",
+      className: "border-slate-200 bg-slate-50 text-slate-600",
+    };
+  }
+
+  const lastLoginTime = new Date(lastLoginAt).getTime();
+
+  if (Number.isNaN(lastLoginTime)) {
+    return {
+      label: "Inconnu",
+      className: "border-slate-200 bg-slate-50 text-slate-600",
+    };
+  }
+
+  const daysSinceLogin =
+    (Date.now() - lastLoginTime) / (1000 * 60 * 60 * 24);
+
+  if (daysSinceLogin <= 7) {
+    return {
+      label: "Actif 7j",
+      className: "border-green-200 bg-green-50 text-green-700",
+    };
+  }
+
+  if (daysSinceLogin <= 30) {
+    return {
+      label: "Actif 30j",
+      className: "border-blue-200 bg-blue-50 text-blue-700",
+    };
+  }
+
+  return {
+    label: "Inactif",
+    className: "border-amber-200 bg-amber-50 text-amber-700",
+  };
+}
+
 type Props = {
   users: AdminUser[];
   onDelete: (id: string) => void;
@@ -16,6 +70,7 @@ export function UserTable({ users, onDelete, renderEditLink }: Props) {
             <th className="p-3">Nom</th>
             <th className="p-3">Email</th>
             <th className="p-3">Rôle</th>
+            <th className="p-3">Activité</th>
             <th className="p-3">Actions</th>
           </tr>
         </thead>
@@ -33,6 +88,24 @@ export function UserTable({ users, onDelete, renderEditLink }: Props) {
                   {getRoleLabel(u.role)}
                 </span>
               </td>
+              <td className="p-3">
+                {(() => {
+                  const activity = getActivityStatus(u.lastLoginAt);
+
+                  return (
+                    <div className="space-y-1">
+                      <span
+                        className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${activity.className}`}
+                      >
+                        {activity.label}
+                      </span>
+                      <p className="text-xs text-slate-500">
+                        {formatLastLogin(u.lastLoginAt)}
+                      </p>
+                    </div>
+                  );
+                })()}
+              </td>
               <td className="p-3 flex gap-3">
                 {renderEditLink(u.id)}
                 <button className="text-red-600 underline" onClick={() => onDelete(u.id)}>
@@ -43,7 +116,7 @@ export function UserTable({ users, onDelete, renderEditLink }: Props) {
           ))}
           {users.length === 0 && (
             <tr>
-              <td className="p-3 text-zinc-500" colSpan={4}>
+              <td className="p-3 text-zinc-500" colSpan={5}>
                 Aucun utilisateur.
               </td>
             </tr>

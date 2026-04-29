@@ -19,6 +19,7 @@ export class AdminUsersService {
         role: true,
         createdAt: true,
         updatedAt: true,
+        lastLoginAt: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -34,6 +35,7 @@ export class AdminUsersService {
         role: true,
         createdAt: true,
         updatedAt: true,
+        lastLoginAt: true,
         // ✅ bonus: learningModuleId pour affichage dans table admin
         learningModuleId: true,
       },
@@ -51,6 +53,7 @@ export class AdminUsersService {
         role: true,
         createdAt: true,
         updatedAt: true,
+        lastLoginAt: true,
 
         // ✅ important pour l'admin UI
         learningModuleId: true,
@@ -120,6 +123,7 @@ export class AdminUsersService {
           role: true,
           createdAt: true,
           updatedAt: true,
+          lastLoginAt: true,
           learningModuleId: true,
           learningModule: {
             select: {
@@ -193,6 +197,7 @@ export class AdminUsersService {
         role: true,
         createdAt: true,
         updatedAt: true,
+        lastLoginAt: true,
       },
     });
 

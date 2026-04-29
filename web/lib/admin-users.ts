@@ -9,6 +9,7 @@ export type AdminUser = {
   role: Role;
   createdAt: string;
   updatedAt: string;
+  lastLoginAt?: string | null;
 
   // ✅ nouveau (optionnel)
   learningModuleId?: string | null;
