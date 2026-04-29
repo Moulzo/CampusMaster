@@ -74,6 +74,10 @@ export async function getMyTickets(): Promise<Ticket[]> {
   return apiFetchJson<Ticket[]>("/tickets/my");
 }
 
+export async function getMyTicket(id: string): Promise<Ticket> {
+  return apiFetchJson<Ticket>(`/tickets/${id}`);
+}
+
 export async function getAdminTickets(filters?: {
   status?: TicketStatus | "";
 }): Promise<Ticket[]> {

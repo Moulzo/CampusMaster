@@ -51,6 +51,31 @@ export class TicketsService {
     });
   }
 
+  async findOneMine(id: string, requesterId: string) {
+    const ticket = await this.prisma.ticket.findFirst({
+      where: {
+        id,
+        requesterId,
+      },
+      include: {
+        requester: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    if (!ticket) {
+      throw new NotFoundException('Ticket not found');
+    }
+
+    return ticket;
+  }
+
   findAll(filters?: { status?: TicketStatus }) {
     return this.prisma.ticket.findMany({
       where: filters?.status ? { status: filters.status } : undefined,

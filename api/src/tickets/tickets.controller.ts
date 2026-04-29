@@ -28,6 +28,12 @@ export class TicketsController {
     return this.ticketsService.findMine(userId);
   }
 
+  @Get('tickets/:id')
+  findOneMine(@Request() req: any, @Param('id') id: string) {
+    const userId = req.user?.id ?? req.user?.sub;
+    return this.ticketsService.findOneMine(id, userId);
+  }
+
   @Get('admin/tickets')
   @Roles('ADMIN')
   @ApiQuery({

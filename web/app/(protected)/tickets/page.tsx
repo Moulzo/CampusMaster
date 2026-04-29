@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -221,6 +222,13 @@ export default function TicketsPage() {
                       <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700">
                         {ticket.description}
                       </p>
+
+                      <Link
+                        href={`/tickets/${ticket.id}`}
+                        className="mt-3 inline-flex text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                      >
+                        Voir le détail
+                      </Link>
                     </div>
                   </div>
                 </article>
