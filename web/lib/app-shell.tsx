@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 import { logout } from "@/lib/auth";
 import { getNavItems } from "@/lib/nav-items";
 import { getUnreadPrivateConversationsCount } from "@/lib/private-messages";
+import { getPendingAdminTicketsCount } from "@/lib/tickets";
 import { getRoleLabel } from "@/lib/role-labels";
 import { PrivateMessageToasts } from "@/components/PrivateMessageToasts";
 
@@ -26,6 +27,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopCollapsed, setDesktopCollapsed] = useState(false);
   const [unreadMessagesBadgeCount, setUnreadMessagesBadgeCount] = useState(0);
+  const [pendingTicketsCount, setPendingTicketsCount] = useState(0);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("cm:sidebar:collapsed");
@@ -50,6 +52,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (!user) return;
 
     void refreshUnreadMessagesBadge();
+    void refreshPendingTicketsBadge();
   }, [user, pathname]);
 
   useEffect(() => {
@@ -91,6 +94,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       setUnreadMessagesBadgeCount(result.count);
     } catch (error) {
       console.error("Erreur chargement badge messages:", error);
+    }
+  }
+
+  async function refreshPendingTicketsBadge() {
+    if (user?.role !== "ADMIN") return;
+
+    try {
+      const result = await getPendingAdminTicketsCount();
+      setPendingTicketsCount(result.count);
+    } catch (error) {
+      console.error("Erreur chargement badge demandes:", error);
     }
   }
 
@@ -218,6 +232,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                             {unreadMessagesBadgeCount}
                           </span>
                         )}
+                        {item.href === "/admin/tickets" && pendingTicketsCount > 0 && (
+                          <span className="ml-auto inline-flex min-w-[22px] items-center justify-center rounded-full bg-amber-500 px-2 py-0.5 text-xs font-bold text-white">
+                            {pendingTicketsCount}
+                          </span>
+                        )}
                         {!enabled && (
                           <span className="ml-auto text-xs bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">
                             bientôt
@@ -319,6 +338,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                                 {unreadMessagesBadgeCount}
                               </span>
                             )}
+                          {desktopCollapsed &&
+                            item.href === "/admin/tickets" &&
+                            pendingTicketsCount > 0 && (
+                              <span className="absolute -right-2 -top-2 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white">
+                                {pendingTicketsCount}
+                              </span>
+                            )}
                         </span>
 
                         {!desktopCollapsed && <span>{item.label}</span>}
@@ -328,6 +354,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                           unreadMessagesBadgeCount > 0 && (
                             <span className="ml-auto inline-flex min-w-[22px] items-center justify-center rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
                               {unreadMessagesBadgeCount}
+                            </span>
+                          )}
+                        {!desktopCollapsed &&
+                          item.href === "/admin/tickets" &&
+                          pendingTicketsCount > 0 && (
+                            <span className="ml-auto inline-flex min-w-[22px] items-center justify-center rounded-full bg-amber-500 px-2 py-0.5 text-xs font-bold text-white">
+                              {pendingTicketsCount}
                             </span>
                           )}
 

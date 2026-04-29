@@ -100,3 +100,14 @@ export async function updateAdminTicketStatus(
     body: JSON.stringify({ status }),
   });
 }
+
+export async function getPendingAdminTicketsCount(): Promise<{ count: number }> {
+  const [openTickets, inProgressTickets] = await Promise.all([
+    getAdminTickets({ status: "OPEN" }),
+    getAdminTickets({ status: "IN_PROGRESS" }),
+  ]);
+
+  return {
+    count: openTickets.length + inProgressTickets.length,
+  };
+}
