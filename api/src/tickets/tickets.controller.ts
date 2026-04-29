@@ -18,7 +18,8 @@ export class TicketsController {
   @Post('tickets')
   create(@Request() req: any, @Body() dto: CreateTicketDto) {
     const userId = req.user?.id ?? req.user?.sub;
-    return this.ticketsService.create(userId, dto);
+    const role = req.user?.role;
+    return this.ticketsService.create(userId, role, dto);
   }
 
   @Get('tickets/my')

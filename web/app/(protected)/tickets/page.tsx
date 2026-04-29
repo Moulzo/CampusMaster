@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "@/lib/auth-context";
 import {
   createTicket,
   getMyTickets,
@@ -22,6 +23,7 @@ function formatDate(date: string) {
 }
 
 export default function TicketsPage() {
+  const { user } = useAuth();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -30,6 +32,22 @@ export default function TicketsPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState<TicketType>("TECHNICAL_SUPPORT");
+
+  const availableTicketTypes = useMemo(() => {
+    const entries = Object.entries(ticketTypeLabels) as Array<
+      [TicketType, string]
+    >;
+    if (user?.role === "STUDENT") {
+      return entries.filter(([type]) => type !== "COURSE_CREATION");
+    }
+    return entries;
+  }, [user?.role]);
+
+  useEffect(() => {
+    if (user?.role === "STUDENT" && type === "COURSE_CREATION") {
+      setType("TECHNICAL_SUPPORT");
+    }
+  }, [user?.role, type]);
 
   async function refresh() {
     setLoading(true);
@@ -116,7 +134,7 @@ export default function TicketsPage() {
                 onChange={(e) => setType(e.target.value as TicketType)}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               >
-                {Object.entries(ticketTypeLabels).map(([value, label]) => (
+                {availableTicketTypes.map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}
                   </option>

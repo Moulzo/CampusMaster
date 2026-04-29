@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { TicketStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
@@ -7,7 +7,13 @@ import { CreateTicketDto } from './dto/create-ticket.dto';
 export class TicketsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(requesterId: string, dto: CreateTicketDto) {
+  create(requesterId: string, requesterRole: string, dto: CreateTicketDto) {
+    if (requesterRole === 'STUDENT' && dto.type === 'COURSE_CREATION') {
+      throw new BadRequestException(
+        'Les étudiants ne peuvent pas créer de demande de création de matière.',
+      );
+    }
+
     return this.prisma.ticket.create({
       data: {
         title: dto.title.trim(),
