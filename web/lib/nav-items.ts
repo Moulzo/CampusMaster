@@ -16,7 +16,7 @@ export function getNavItems(role: Role): NavItem[] {
       { label: "Semestres", href: "/admin/semesters", icon: "📅", enabled: true },
       { label: "Modules", href: "/admin/modules", icon: "📚", enabled: true },
       { label: "Matières", href: "/admin/subjects", icon: "📖", enabled: true },
-      { label: "Statistiques", href: "/admin/analytics", icon: "📈", enabled: true },
+      { label: "Stats pédagogiques", href: "/admin/pedagogy-analytics", icon: "📈", enabled: true },
       { label: "Messages", href: "/messages", icon: "💬", enabled: true },
     ];
   }
