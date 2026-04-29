@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   getAdminTickets,
@@ -235,6 +236,12 @@ export default function AdminTicketsPage() {
                       <p className="mt-1 max-w-xl whitespace-pre-wrap text-xs text-slate-500">
                         {ticket.description}
                       </p>
+                      <Link
+                        href={`/admin/tickets/${ticket.id}`}
+                        className="mt-2 inline-flex text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                      >
+                        Voir le détail
+                      </Link>
                     </td>
 
                     <td className="px-4 py-4 text-slate-600">

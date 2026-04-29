@@ -39,6 +39,12 @@ export class TicketsController {
     return this.ticketsService.findAll(status ? { status } : undefined);
   }
 
+  @Get('admin/tickets/:id')
+  @Roles('ADMIN')
+  findOneForAdmin(@Param('id') id: string) {
+    return this.ticketsService.findOneForAdmin(id);
+  }
+
   @Patch('admin/tickets/:id/status')
   @Roles('ADMIN')
   updateStatus(@Param('id') id: string, @Body() dto: UpdateTicketStatusDto) {

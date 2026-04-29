@@ -101,6 +101,10 @@ export async function updateAdminTicketStatus(
   });
 }
 
+export async function getAdminTicket(id: string): Promise<Ticket> {
+  return apiFetchJson<Ticket>(`/admin/tickets/${id}`);
+}
+
 export async function getPendingAdminTicketsCount(): Promise<{ count: number }> {
   const [openTickets, inProgressTickets] = await Promise.all([
     getAdminTickets({ status: "OPEN" }),
