@@ -35,6 +35,7 @@ export default function AdminTicketsPage() {
   const [loading, setLoading] = useState(true);
   const [updatingById, setUpdatingById] = useState<Record<string, boolean>>({});
   const [error, setError] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   async function refresh() {
     setLoading(true);
@@ -81,6 +82,26 @@ export default function AdminTicketsPage() {
     );
   }, [tickets]);
 
+  const filteredTickets = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    if (!query) {
+      return tickets;
+    }
+
+    return tickets.filter((ticket) => {
+      const typeLabel = ticketTypeLabels[ticket.type]?.toLowerCase() ?? "";
+
+      return (
+        ticket.title.toLowerCase().includes(query) ||
+        ticket.description.toLowerCase().includes(query) ||
+        typeLabel.includes(query) ||
+        ticket.requester?.fullName?.toLowerCase().includes(query) ||
+        ticket.requester?.email?.toLowerCase().includes(query)
+      );
+    });
+  }, [tickets, searchQuery]);
+
   return (
     <div className="space-y-6">
       <header className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -101,8 +122,13 @@ export default function AdminTicketsPage() {
           <div>
             <h2 className="text-lg font-bold text-slate-900">Liste des demandes</h2>
             <p className="mt-1 text-sm text-slate-500">
-              {tickets.length} demande{tickets.length > 1 ? "s" : ""} affichée
-              {tickets.length > 1 ? "s" : ""}.
+              {searchQuery.trim()
+                ? `${filteredTickets.length} résultat${
+                    filteredTickets.length > 1 ? "s" : ""
+                  } sur ${tickets.length} demande${tickets.length > 1 ? "s" : ""}`
+                : `${tickets.length} demande${tickets.length > 1 ? "s" : ""} affichée${
+                    tickets.length > 1 ? "s" : ""
+                  }`}
             </p>
           </div>
 
@@ -143,14 +169,51 @@ export default function AdminTicketsPage() {
             ),
           )}
         </div>
+
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <label
+              htmlFor="admin-ticket-search"
+              className="text-sm font-medium text-slate-700"
+            >
+              Rechercher une demande
+            </label>
+            <p className="text-xs text-slate-500">
+              Recherche par titre, description, demandeur, email ou type.
+            </p>
+          </div>
+
+          <div className="flex w-full gap-2 sm:max-w-md">
+            <input
+              id="admin-ticket-search"
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Ex: support, matière, email..."
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            />
+
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+              >
+                Effacer
+              </button>
+            )}
+          </div>
+        </div>
       </section>
 
       <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         {loading ? (
           <div className="p-6 text-sm text-slate-500">Chargement...</div>
-        ) : tickets.length === 0 ? (
+        ) : filteredTickets.length === 0 ? (
           <div className="p-6 text-sm text-slate-500">
-            Aucune demande pour ce filtre.
+            {searchQuery.trim()
+              ? "Aucune demande ne correspond à cette recherche."
+              : "Aucune demande pour ce filtre."}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -165,7 +228,7 @@ export default function AdminTicketsPage() {
                 </tr>
               </thead>
               <tbody>
-                {tickets.map((ticket) => (
+                {filteredTickets.map((ticket) => (
                   <tr key={ticket.id} className="border-t border-slate-100 align-top">
                     <td className="px-4 py-4">
                       <p className="font-semibold text-slate-900">{ticket.title}</p>
