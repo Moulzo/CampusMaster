@@ -81,6 +81,8 @@ export default function AdminPage() {
     };
   }, []);
 
+  const recentWeeklyLogins = weeklyLogins.slice(-6).reverse();
+
   return (
     <RequireRole role="ADMIN">
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
@@ -259,52 +261,49 @@ export default function AdminPage() {
                       </div>
                     </section>
 
-                    <section className="space-y-3">
-                      <div>
-                        <h2 className="text-lg font-bold text-slate-900">Activité des connexions</h2>
-                        <p className="text-sm text-slate-500">
-                          Évolution hebdomadaire des connexions et utilisateurs actifs.
+                    <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-md">
+                      <div className="mb-4">
+                        <h2 className="text-lg font-bold text-slate-900">
+                          Activité des connexions
+                        </h2>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Suivi hebdomadaire des connexions réussies et des utilisateurs actifs.
                         </p>
                       </div>
 
-                      <div className="bg-white rounded-lg shadow-md border border-slate-200 overflow-hidden">
-                        <table className="w-full">
-                          <thead className="bg-slate-50 border-b border-slate-200">
-                            <tr>
-                              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                                Semaine
-                              </th>
-                              <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">
-                                Connexions
-                              </th>
-                              <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">
-                                Utilisateurs actifs
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-200">
-                            {weeklyLogins.length === 0 ? (
+                      {recentWeeklyLogins.length === 0 ? (
+                        <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">
+                          Aucune connexion enregistrée pour le moment.
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full text-sm">
+                            <thead className="bg-slate-50 text-left text-slate-600">
                               <tr>
-                                <td colSpan={3} className="px-4 py-8 text-center text-slate-500">
-                                  Aucune donnée de connexion disponible
-                                </td>
+                                <th className="px-4 py-3 font-semibold">Période</th>
+                                <th className="px-4 py-3 font-semibold">Connexions</th>
+                                <th className="px-4 py-3 font-semibold">Utilisateurs actifs</th>
                               </tr>
-                            ) : (
-                              weeklyLogins.slice(-8).reverse().map((week) => (
-                                <tr key={week.weekKey} className="hover:bg-slate-50">
-                                  <td className="px-4 py-3 text-sm text-slate-900">{week.label}</td>
-                                  <td className="px-4 py-3 text-sm text-slate-900 text-right font-medium">
-                                    {week.loginCount}
+                            </thead>
+
+                            <tbody>
+                              {recentWeeklyLogins.map((point) => (
+                                <tr key={point.weekKey} className="border-t border-slate-100">
+                                  <td className="px-4 py-3 font-medium text-slate-900">
+                                    {point.label}
                                   </td>
-                                  <td className="px-4 py-3 text-sm text-slate-900 text-right font-medium">
-                                    {week.activeUserCount}
+                                  <td className="px-4 py-3 text-slate-600">
+                                    {point.loginCount}
+                                  </td>
+                                  <td className="px-4 py-3 text-slate-600">
+                                    {point.activeUserCount}
                                   </td>
                                 </tr>
-                              ))
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </section>
                   </div>
                 </>
