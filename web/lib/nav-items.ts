@@ -12,6 +12,7 @@ export function getNavItems(role: Role): NavItem[] {
     return [
       { label: "Tableau de bord", href: "/admin", icon: "📊", enabled: true },
       { label: "Utilisateurs", href: "/admin/users", icon: "👥", enabled: true },
+      { label: "Demandes", href: "/admin/tickets", icon: "🎫", enabled: true },
       { label: "Étudiants", href: "/admin/students", icon: "🎓", enabled: true },
       { label: "Semestres", href: "/admin/semesters", icon: "📅", enabled: true },
       { label: "Modules", href: "/admin/modules", icon: "📚", enabled: true },
@@ -27,6 +28,7 @@ export function getNavItems(role: Role): NavItem[] {
       { label: "Mes matières", href: "/teacher/subjects", icon: "📚", enabled: true },
       { label: "Devoirs", href: "/teacher/assignments", icon: "📝", enabled: true },
       { label: "Statistiques", href: "/teacher/analytics", icon: "📈", enabled: true },
+      { label: "Demandes", href: "/tickets", icon: "🎫", enabled: true },
       { label: "Messages", href: "/messages", icon: "💬", enabled: true },
     ];
   }
@@ -36,6 +38,7 @@ export function getNavItems(role: Role): NavItem[] {
     { label: "Mes matières", href: "/student/subjects", icon: "📚", enabled: true },
     { label: "Devoirs", href: "/student/assignments", icon: "📝", enabled: true },
     { label: "Résultats", href: "/student/results", icon: "📊", enabled: true },
+    { label: "Demandes", href: "/tickets", icon: "🎫", enabled: true },
     { label: "Messages", href: "/messages", icon: "💬", enabled: true },
   ];
 }
