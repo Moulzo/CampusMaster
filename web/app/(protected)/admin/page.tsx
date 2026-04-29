@@ -5,7 +5,9 @@ import { useEffect, useState } from "react";
 import { RequireRole } from "@/lib/require-role";
 import {
   getAdminAnalyticsOverview,
+  getAdminAnalyticsWeeklyLogins,
   type AdminAnalyticsOverview,
+  type WeeklyLoginsPoint,
 } from "@/lib/admin-analytics";
 
 function StatCard({
@@ -45,6 +47,7 @@ function StatCard({
 
 export default function AdminPage() {
   const [overview, setOverview] = useState<AdminAnalyticsOverview | null>(null);
+  const [weeklyLogins, setWeeklyLogins] = useState<WeeklyLoginsPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -56,11 +59,15 @@ export default function AdminPage() {
         setLoading(true);
         setError("");
 
-        const overviewData = await getAdminAnalyticsOverview();
+        const [overviewData, weeklyLoginsData] = await Promise.all([
+          getAdminAnalyticsOverview(),
+          getAdminAnalyticsWeeklyLogins(),
+        ]);
 
         if (cancelled) return;
 
         setOverview(overviewData);
+        setWeeklyLogins(weeklyLoginsData);
       } catch (e: any) {
         if (cancelled) return;
         setError(e?.message ?? "Erreur lors du chargement des analytics.");
@@ -249,6 +256,54 @@ export default function AdminPage() {
                           icon="📝"
                           tone="pink"
                         />
+                      </div>
+                    </section>
+
+                    <section className="space-y-3">
+                      <div>
+                        <h2 className="text-lg font-bold text-slate-900">Activité des connexions</h2>
+                        <p className="text-sm text-slate-500">
+                          Évolution hebdomadaire des connexions et utilisateurs actifs.
+                        </p>
+                      </div>
+
+                      <div className="bg-white rounded-lg shadow-md border border-slate-200 overflow-hidden">
+                        <table className="w-full">
+                          <thead className="bg-slate-50 border-b border-slate-200">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                                Semaine
+                              </th>
+                              <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">
+                                Connexions
+                              </th>
+                              <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">
+                                Utilisateurs actifs
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200">
+                            {weeklyLogins.length === 0 ? (
+                              <tr>
+                                <td colSpan={3} className="px-4 py-8 text-center text-slate-500">
+                                  Aucune donnée de connexion disponible
+                                </td>
+                              </tr>
+                            ) : (
+                              weeklyLogins.slice(-8).reverse().map((week) => (
+                                <tr key={week.weekKey} className="hover:bg-slate-50">
+                                  <td className="px-4 py-3 text-sm text-slate-900">{week.label}</td>
+                                  <td className="px-4 py-3 text-sm text-slate-900 text-right font-medium">
+                                    {week.loginCount}
+                                  </td>
+                                  <td className="px-4 py-3 text-sm text-slate-900 text-right font-medium">
+                                    {week.activeUserCount}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
                       </div>
                     </section>
                   </div>

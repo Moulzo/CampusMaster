@@ -89,6 +89,13 @@ export type WeeklyViewsPoint = {
   viewCount: number;
 };
 
+export type WeeklyLoginsPoint = {
+  weekKey: string;
+  label: string;
+  loginCount: number;
+  activeUserCount: number;
+};
+
 export type AdminConfigurableKpis = {
   counts: {
     expectedCount: number;
@@ -172,4 +179,10 @@ export async function getAdminAnalyticsConfigurableKpis(filters?: {
 
   const query = params.toString();
   return apiFetchJson(`/admin/analytics/configurable-kpis${query ? `?${query}` : ""}`);
+}
+
+export async function getAdminAnalyticsWeeklyLogins(): Promise<
+  WeeklyLoginsPoint[]
+> {
+  return apiFetchJson("/admin/analytics/weekly-logins");
 }

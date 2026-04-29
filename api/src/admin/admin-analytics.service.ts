@@ -812,4 +812,76 @@ export class AdminAnalyticsService {
       },
     };
   }
+
+  async getWeeklyLogins() {
+    const events = await this.prisma.loginEvent.findMany({
+      select: {
+        userId: true,
+        createdAt: true,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    type WeekBucket = {
+      weekKey: string;
+      label: string;
+      loginCount: number;
+      userIds: Set<string>;
+    };
+
+    const buckets = new Map<string, WeekBucket>();
+
+    const getWeekStart = (date: Date) => {
+      const d = new Date(date);
+      d.setHours(0, 0, 0, 0);
+
+      const day = d.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+
+      d.setDate(d.getDate() + diff);
+      return d;
+    };
+
+    const toWeekKey = (date: Date) => {
+      return getWeekStart(date).toISOString().slice(0, 10);
+    };
+
+    const toWeekLabel = (date: Date) => {
+      const start = getWeekStart(date);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+
+      return `${start.toLocaleDateString('fr-FR')} - ${end.toLocaleDateString(
+        'fr-FR',
+      )}`;
+    };
+
+    for (const event of events) {
+      const weekKey = toWeekKey(event.createdAt);
+
+      if (!buckets.has(weekKey)) {
+        buckets.set(weekKey, {
+          weekKey,
+          label: toWeekLabel(event.createdAt),
+          loginCount: 0,
+          userIds: new Set<string>(),
+        });
+      }
+
+      const bucket = buckets.get(weekKey)!;
+      bucket.loginCount += 1;
+      bucket.userIds.add(event.userId);
+    }
+
+    return Array.from(buckets.values())
+      .sort((a, b) => a.weekKey.localeCompare(b.weekKey))
+      .map((bucket) => ({
+        weekKey: bucket.weekKey,
+        label: bucket.label,
+        loginCount: bucket.loginCount,
+        activeUserCount: bucket.userIds.size,
+      }));
+  }
 }

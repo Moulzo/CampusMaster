@@ -70,4 +70,10 @@ export class AdminAnalyticsController {
   ) {
     return this.adminAnalyticsService.getWeeklyViews({ semesterId, moduleId });
   }
+
+  @Get('weekly-logins')
+  @ApiOperation({ summary: 'Get weekly login analytics' })
+  getWeeklyLogins() {
+    return this.adminAnalyticsService.getWeeklyLogins();
+  }
 }
