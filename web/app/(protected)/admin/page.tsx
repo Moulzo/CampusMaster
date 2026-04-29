@@ -196,6 +196,30 @@ export default function AdminPage() {
                           tone="slate"
                         />
                         <StatCard
+                          title="Connexions totales"
+                          value={overview?.totals.totalLogins ?? 0}
+                          icon="🔐"
+                          tone="purple"
+                        />
+                        <StatCard
+                          title="Connexions 7 jours"
+                          value={overview?.totals.loginsLast7Days ?? 0}
+                          icon="📆"
+                          tone="blue"
+                        />
+                        <StatCard
+                          title="Actifs 7 jours"
+                          value={overview?.totals.activeUsersLast7Days ?? 0}
+                          icon="🟢"
+                          tone="green"
+                        />
+                        <StatCard
+                          title="Actifs 30 jours"
+                          value={overview?.totals.activeUsersLast30Days ?? 0}
+                          icon="👤"
+                          tone="slate"
+                        />
+                        <StatCard
                           title="Cours"
                           value={overview?.totals.courses ?? 0}
                           icon="📚"

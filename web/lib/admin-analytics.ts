@@ -12,6 +12,10 @@ export type AdminAnalyticsOverview = {
     resources: number;
     resourceViews: number;
     resourceDownloads: number;
+    totalLogins: number;
+    loginsLast7Days: number;
+    activeUsersLast7Days: number;
+    activeUsersLast30Days: number;
   };
   kpis: {
     expectedSubmissions: number;

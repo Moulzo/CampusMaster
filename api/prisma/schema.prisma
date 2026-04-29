@@ -52,6 +52,7 @@ model User {
   refreshTokenHash  String?
   resetTokenHash    String?
   resetTokenExpires DateTime?
+  lastLoginAt       DateTime?
 
   // Module affecté (pour les étudiants)
   learningModule   LearningModule? @relation("ModuleStudents", fields: [learningModuleId], references: [id])
@@ -66,6 +67,7 @@ model User {
   courseResources        CourseResource[]
   resourceDownloadEvents ResourceDownloadEvent[]
   resourceViewEvents     ResourceViewEvent[]
+  loginEvents            LoginEvent[]
 
   // Annonces créées par l'utilisateur
   announcements Announcement[] @relation("AnnouncementAuthor")
@@ -397,5 +399,17 @@ model Ticket {
   @@index([requesterId])
   @@index([status])
   @@index([type])
+  @@index([createdAt])
+}
+
+model LoginEvent {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
   @@index([createdAt])
 }

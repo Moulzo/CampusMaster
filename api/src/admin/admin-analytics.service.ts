@@ -26,6 +26,14 @@ export class AdminAnalyticsService {
   }
 
   async getOverview() {
+    const now = new Date();
+
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(now.getDate() - 7);
+
+    const thirtyDaysAgo = new Date(now);
+    thirtyDaysAgo.setDate(now.getDate() - 30);
+
     const [
       users,
       students,
@@ -36,6 +44,10 @@ export class AdminAnalyticsService {
       resources,
       resourceViews,
       resourceDownloads,
+      totalLogins,
+      loginsLast7Days,
+      activeUsersLast7Days,
+      activeUsersLast30Days,
     ] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.user.count({ where: { role: Role.STUDENT } }),
@@ -46,6 +58,28 @@ export class AdminAnalyticsService {
       this.prisma.courseResource.count(),
       this.prisma.resourceViewEvent.count(),
       this.prisma.resourceDownloadEvent.count(),
+      this.prisma.loginEvent.count(),
+      this.prisma.loginEvent.count({
+        where: {
+          createdAt: {
+            gte: sevenDaysAgo,
+          },
+        },
+      }),
+      this.prisma.user.count({
+        where: {
+          lastLoginAt: {
+            gte: sevenDaysAgo,
+          },
+        },
+      }),
+      this.prisma.user.count({
+        where: {
+          lastLoginAt: {
+            gte: thirtyDaysAgo,
+          },
+        },
+      }),
     ]);
 
     // Récupérer tous les cours avec leurs infos de semestre
@@ -133,6 +167,10 @@ export class AdminAnalyticsService {
         resources,
         resourceViews,
         resourceDownloads,
+        totalLogins,
+        loginsLast7Days,
+        activeUsersLast7Days,
+        activeUsersLast30Days,
       },
       kpis: {
         expectedSubmissions: totalExpected,

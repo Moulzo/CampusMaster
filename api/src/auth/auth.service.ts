@@ -89,6 +89,8 @@ export class AuthService {
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) throw new UnauthorizedException('Identifiants invalides');
 
+    await this.recordSuccessfulLogin(user.id);
+
     return this.issueTokens(user);
   }
 
@@ -239,6 +241,18 @@ export class AuthService {
       accessToken,
       refreshToken,
     };
+  }
+
+  private async recordSuccessfulLogin(userId: string) {
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { lastLoginAt: new Date() },
+      }),
+      this.prisma.loginEvent.create({
+        data: { userId },
+      }),
+    ]);
   }
 
   async forgotPassword(email: string) {
